@@ -131,6 +131,9 @@ linters:
         - whyNoLint
         - yodaStyleExpr
 
+    godot:
+      scope: all
+
     gosec:
       excludes:
         - G306 # Expect WriteFile permissions to be 0600 or less.
