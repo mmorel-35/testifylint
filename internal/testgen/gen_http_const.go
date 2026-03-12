@@ -24,6 +24,7 @@ func (g HTTPConstTestsGenerator) TemplateData() any {
 	}{
 		CheckerName: CheckerName(checker),
 		InvalidAssertions: []Assertion{
+			// HTTPStatusCode: method + status code
 			{
 				Fn:            "HTTPStatusCode",
 				Argsf:         `httpOK, "get", "/index", nil, 200`,
@@ -42,16 +43,49 @@ func (g HTTPConstTestsGenerator) TemplateData() any {
 				ReportMsgf:    checker + ": use net/http constants instead of value",
 				ProposedArgsf: `httpOK, http.MethodGet, "/index", nil, http.StatusOK`,
 			},
+			// HTTPBodyContains: method-only
 			{
 				Fn:            "HTTPBodyContains",
 				Argsf:         `httpHelloName, "GET", "/", url.Values{"name": []string{"World"}}, "Hello, World!"`,
 				ReportMsgf:    checker + ": use net/http constants instead of value",
 				ProposedArgsf: `httpHelloName, http.MethodGet, "/", url.Values{"name": []string{"World"}}, "Hello, World!"`,
 			},
+			// HTTPBodyNotContains: method-only
+			{
+				Fn:            "HTTPBodyNotContains",
+				Argsf:         `httpHelloName, "POST", "/", nil, "Goodbye"`,
+				ReportMsgf:    checker + ": use net/http constants instead of value",
+				ProposedArgsf: `httpHelloName, http.MethodPost, "/", nil, "Goodbye"`,
+			},
+			// HTTPError: method-only
+			{
+				Fn:            "HTTPError",
+				Argsf:         `httpError, "DELETE", "/resource", nil`,
+				ReportMsgf:    checker + ": use net/http constants instead of value",
+				ProposedArgsf: `httpError, http.MethodDelete, "/resource", nil`,
+			},
+			// HTTPRedirect: method-only
+			{
+				Fn:            "HTTPRedirect",
+				Argsf:         `httpRedirect, "PUT", "/old", nil`,
+				ReportMsgf:    checker + ": use net/http constants instead of value",
+				ProposedArgsf: `httpRedirect, http.MethodPut, "/old", nil`,
+			},
+			// HTTPSuccess: method-only
+			{
+				Fn:            "HTTPSuccess",
+				Argsf:         `httpOK, "PATCH", "/update", nil`,
+				ReportMsgf:    checker + ": use net/http constants instead of value",
+				ProposedArgsf: `httpOK, http.MethodPatch, "/update", nil`,
+			},
 		},
 		ValidAssertions: []Assertion{
 			{Fn: "HTTPStatusCode", Argsf: `httpOK, http.MethodGet, "/index", nil, http.StatusOK`},
 			{Fn: "HTTPBodyContains", Argsf: `httpHelloName, http.MethodGet, "/", url.Values{"name": []string{"World"}}, "Hello, World!"`},
+			{Fn: "HTTPBodyNotContains", Argsf: `httpHelloName, http.MethodPost, "/", nil, "Goodbye"`},
+			{Fn: "HTTPError", Argsf: `httpError, http.MethodDelete, "/resource", nil`},
+			{Fn: "HTTPRedirect", Argsf: `httpRedirect, http.MethodPut, "/old", nil`},
+			{Fn: "HTTPSuccess", Argsf: `httpOK, http.MethodPatch, "/update", nil`},
 		},
 		IgnoredAssertions: []Assertion{
 			// Uncommon HTTP methods or HTTP status codes should be ignored.
@@ -93,6 +127,14 @@ func httpOK(w http.ResponseWriter, r *http.Request) {
 func httpHelloName(w http.ResponseWriter, r *http.Request) {
 	name := r.FormValue("name")
 	_, _ = fmt.Fprintf(w, "Hello, %s!", name)
+}
+
+func httpError(w http.ResponseWriter, r *http.Request) {
+	http.Error(w, "error", http.StatusInternalServerError)
+}
+
+func httpRedirect(w http.ResponseWriter, r *http.Request) {
+	http.Redirect(w, r, "/new", http.StatusMovedPermanently)
 }
 
 func {{ .CheckerName.AsTestName }}(t *testing.T) {

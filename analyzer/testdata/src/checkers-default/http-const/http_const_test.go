@@ -20,6 +20,14 @@ func httpHelloName(w http.ResponseWriter, r *http.Request) {
 	_, _ = fmt.Fprintf(w, "Hello, %s!", name)
 }
 
+func httpError(w http.ResponseWriter, r *http.Request) {
+	http.Error(w, "error", http.StatusInternalServerError)
+}
+
+func httpRedirect(w http.ResponseWriter, r *http.Request) {
+	http.Redirect(w, r, "/new", http.StatusMovedPermanently)
+}
+
 func TestHttpConstChecker(t *testing.T) {
 	// Invalid.
 	{
@@ -31,6 +39,14 @@ func TestHttpConstChecker(t *testing.T) {
 		assert.HTTPStatusCodef(t, httpOK, "GET", "/index", nil, 200, "msg with args %d %s", 42, "42")                                                   // want "http-const: use net/http constants instead of value"
 		assert.HTTPBodyContains(t, httpHelloName, "GET", "/", url.Values{"name": []string{"World"}}, "Hello, World!")                                   // want "http-const: use net/http constants instead of value"
 		assert.HTTPBodyContainsf(t, httpHelloName, "GET", "/", url.Values{"name": []string{"World"}}, "Hello, World!", "msg with args %d %s", 42, "42") // want "http-const: use net/http constants instead of value"
+		assert.HTTPBodyNotContains(t, httpHelloName, "POST", "/", nil, "Goodbye")                                                                       // want "http-const: use net/http constants instead of value"
+		assert.HTTPBodyNotContainsf(t, httpHelloName, "POST", "/", nil, "Goodbye", "msg with args %d %s", 42, "42")                                     // want "http-const: use net/http constants instead of value"
+		assert.HTTPError(t, httpError, "DELETE", "/resource", nil)                                                                                      // want "http-const: use net/http constants instead of value"
+		assert.HTTPErrorf(t, httpError, "DELETE", "/resource", nil, "msg with args %d %s", 42, "42")                                                    // want "http-const: use net/http constants instead of value"
+		assert.HTTPRedirect(t, httpRedirect, "PUT", "/old", nil)                                                                                        // want "http-const: use net/http constants instead of value"
+		assert.HTTPRedirectf(t, httpRedirect, "PUT", "/old", nil, "msg with args %d %s", 42, "42")                                                      // want "http-const: use net/http constants instead of value"
+		assert.HTTPSuccess(t, httpOK, "PATCH", "/update", nil)                                                                                          // want "http-const: use net/http constants instead of value"
+		assert.HTTPSuccessf(t, httpOK, "PATCH", "/update", nil, "msg with args %d %s", 42, "42")                                                        // want "http-const: use net/http constants instead of value"
 	}
 
 	// Valid.
@@ -39,6 +55,14 @@ func TestHttpConstChecker(t *testing.T) {
 		assert.HTTPStatusCodef(t, httpOK, http.MethodGet, "/index", nil, http.StatusOK, "msg with args %d %s", 42, "42")
 		assert.HTTPBodyContains(t, httpHelloName, http.MethodGet, "/", url.Values{"name": []string{"World"}}, "Hello, World!")
 		assert.HTTPBodyContainsf(t, httpHelloName, http.MethodGet, "/", url.Values{"name": []string{"World"}}, "Hello, World!", "msg with args %d %s", 42, "42")
+		assert.HTTPBodyNotContains(t, httpHelloName, http.MethodPost, "/", nil, "Goodbye")
+		assert.HTTPBodyNotContainsf(t, httpHelloName, http.MethodPost, "/", nil, "Goodbye", "msg with args %d %s", 42, "42")
+		assert.HTTPError(t, httpError, http.MethodDelete, "/resource", nil)
+		assert.HTTPErrorf(t, httpError, http.MethodDelete, "/resource", nil, "msg with args %d %s", 42, "42")
+		assert.HTTPRedirect(t, httpRedirect, http.MethodPut, "/old", nil)
+		assert.HTTPRedirectf(t, httpRedirect, http.MethodPut, "/old", nil, "msg with args %d %s", 42, "42")
+		assert.HTTPSuccess(t, httpOK, http.MethodPatch, "/update", nil)
+		assert.HTTPSuccessf(t, httpOK, http.MethodPatch, "/update", nil, "msg with args %d %s", 42, "42")
 	}
 
 	// Ignored.

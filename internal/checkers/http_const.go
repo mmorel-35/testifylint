@@ -81,7 +81,10 @@ func newHTTPMethodTextEdit(pass *analysis.Pass, e ast.Expr) *analysis.TextEdit {
 	if !ok {
 		return nil
 	}
-	newVal := httpQualifiedName(pass, bt.Pos(), constName)
+	newVal, ok := httpQualifiedName(pass, bt.Pos(), constName)
+	if !ok {
+		return nil
+	}
 	return &analysis.TextEdit{
 		Pos:     bt.Pos(),
 		End:     bt.End(),
@@ -104,11 +107,18 @@ func newHTTPStatusCodeTextEdit(pass *analysis.Pass, e ast.Expr) *analysis.TextEd
 	if !exact {
 		return nil
 	}
+	// Guard against overflow when converting int64 to int on 32-bit platforms.
+	if int64(int(intVal)) != intVal {
+		return nil
+	}
 	constName, ok := httpStatusCode[int(intVal)]
 	if !ok {
 		return nil
 	}
-	newVal := httpQualifiedName(pass, bt.Pos(), constName)
+	newVal, ok := httpQualifiedName(pass, bt.Pos(), constName)
+	if !ok {
+		return nil
+	}
 	return &analysis.TextEdit{
 		Pos:     bt.Pos(),
 		End:     bt.End(),
@@ -116,12 +126,15 @@ func newHTTPStatusCodeTextEdit(pass *analysis.Pass, e ast.Expr) *analysis.TextEd
 	}
 }
 
-// httpQualifiedName returns "qualifier.constName" using the local import name of net/http,
-// or just "constName" if net/http is dot-imported.
-func httpQualifiedName(pass *analysis.Pass, pos token.Pos, constName string) string {
-	qualifier := httpNetPkgName(pass, pos)
-	if qualifier == "" {
-		return constName
+// httpQualifiedName returns ("qualifier.constName", true) using the local import name of net/http,
+// or ("constName", true) if net/http is dot-imported, or ("", false) if net/http is absent or blank-imported.
+func httpQualifiedName(pass *analysis.Pass, pos token.Pos, constName string) (string, bool) {
+	qualifier, ok := httpNetPkgName(pass, pos)
+	if !ok {
+		return "", false
 	}
-	return qualifier + "." + constName
+	if qualifier == "" {
+		return constName, true // dot-import: no qualifier needed
+	}
+	return qualifier + "." + constName, true
 }
