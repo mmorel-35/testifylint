@@ -5,7 +5,6 @@ import (
 	"go/token"
 	"go/types"
 	"net/http"
-	"strconv"
 
 	"golang.org/x/tools/go/analysis"
 
@@ -97,27 +96,11 @@ var httpStatusCode = map[int]string{
 // Returns empty string if net/http is imported via dot-import (symbols accessible unqualified).
 // Falls back to "http" if the import is not found in the file.
 func httpNetPkgName(pass *analysis.Pass, pos token.Pos) string {
-	for _, file := range pass.Files {
-		if file.Pos() <= pos && pos <= file.End() {
-			for _, imp := range file.Imports {
-				path, err := strconv.Unquote(imp.Path.Value)
-				if err != nil || path != "net/http" {
-					continue
-				}
-				if imp.Name != nil {
-					if imp.Name.Name == "." {
-						return "" // dot-import: symbols accessible unqualified
-					}
-					if imp.Name.Name != "_" {
-						return imp.Name.Name
-					}
-				}
-				return "http"
-			}
-			break
-		}
+	name, ok := analysisutil.LocalPkgName(pass.Files, pos, "net/http")
+	if !ok {
+		return "http" // not found or blank import: fall back to the default package name
 	}
-	return "http"
+	return name // "" for dot-import, local name otherwise
 }
 
 func mimicHTTPHandler(pass *analysis.Pass, fType *ast.FuncType) bool {
