@@ -2,6 +2,7 @@ package checkers
 
 import (
 	"go/ast"
+	"go/token"
 	"go/types"
 	"net/http"
 	"strconv"
@@ -12,84 +13,111 @@ import (
 )
 
 var httpMethod = map[string]string{
-	http.MethodGet:     "http.MethodGet",
-	http.MethodHead:    "http.MethodHead",
-	http.MethodPost:    "http.MethodPost",
-	http.MethodPut:     "http.MethodPut",
-	http.MethodPatch:   "http.MethodPatch",
-	http.MethodDelete:  "http.MethodDelete",
-	http.MethodConnect: "http.MethodConnect",
-	http.MethodOptions: "http.MethodOptions",
-	http.MethodTrace:   "http.MethodTrace",
+	http.MethodGet:     "MethodGet",
+	http.MethodHead:    "MethodHead",
+	http.MethodPost:    "MethodPost",
+	http.MethodPut:     "MethodPut",
+	http.MethodPatch:   "MethodPatch",
+	http.MethodDelete:  "MethodDelete",
+	http.MethodConnect: "MethodConnect",
+	http.MethodOptions: "MethodOptions",
+	http.MethodTrace:   "MethodTrace",
 }
 
-var httpStatusCode = map[string]string{
-	strconv.Itoa(http.StatusContinue):           "http.StatusContinue",
-	strconv.Itoa(http.StatusSwitchingProtocols): "http.StatusSwitchingProtocols",
-	strconv.Itoa(http.StatusProcessing):         "http.StatusProcessing",
-	strconv.Itoa(http.StatusEarlyHints):         "http.StatusEarlyHints",
+var httpStatusCode = map[int]string{
+	http.StatusContinue:           "StatusContinue",
+	http.StatusSwitchingProtocols: "StatusSwitchingProtocols",
+	http.StatusProcessing:         "StatusProcessing",
+	http.StatusEarlyHints:         "StatusEarlyHints",
 
-	strconv.Itoa(http.StatusOK):                   "http.StatusOK",
-	strconv.Itoa(http.StatusCreated):              "http.StatusCreated",
-	strconv.Itoa(http.StatusAccepted):             "http.StatusAccepted",
-	strconv.Itoa(http.StatusNonAuthoritativeInfo): "http.StatusNonAuthoritativeInfo",
-	strconv.Itoa(http.StatusNoContent):            "http.StatusNoContent",
-	strconv.Itoa(http.StatusResetContent):         "http.StatusResetContent",
-	strconv.Itoa(http.StatusPartialContent):       "http.StatusPartialContent",
-	strconv.Itoa(http.StatusMultiStatus):          "http.StatusMultiStatus",
-	strconv.Itoa(http.StatusAlreadyReported):      "http.StatusAlreadyReported",
-	strconv.Itoa(http.StatusIMUsed):               "http.StatusIMUsed",
+	http.StatusOK:                   "StatusOK",
+	http.StatusCreated:              "StatusCreated",
+	http.StatusAccepted:             "StatusAccepted",
+	http.StatusNonAuthoritativeInfo: "StatusNonAuthoritativeInfo",
+	http.StatusNoContent:            "StatusNoContent",
+	http.StatusResetContent:         "StatusResetContent",
+	http.StatusPartialContent:       "StatusPartialContent",
+	http.StatusMultiStatus:          "StatusMultiStatus",
+	http.StatusAlreadyReported:      "StatusAlreadyReported",
+	http.StatusIMUsed:               "StatusIMUsed",
 
-	strconv.Itoa(http.StatusMultipleChoices):   "http.StatusMultipleChoices",
-	strconv.Itoa(http.StatusMovedPermanently):  "http.StatusMovedPermanently",
-	strconv.Itoa(http.StatusFound):             "http.StatusFound",
-	strconv.Itoa(http.StatusSeeOther):          "http.StatusSeeOther",
-	strconv.Itoa(http.StatusNotModified):       "http.StatusNotModified",
-	strconv.Itoa(http.StatusUseProxy):          "http.StatusUseProxy",
-	strconv.Itoa(http.StatusTemporaryRedirect): "http.StatusTemporaryRedirect",
-	strconv.Itoa(http.StatusPermanentRedirect): "http.StatusPermanentRedirect",
+	http.StatusMultipleChoices:   "StatusMultipleChoices",
+	http.StatusMovedPermanently:  "StatusMovedPermanently",
+	http.StatusFound:             "StatusFound",
+	http.StatusSeeOther:          "StatusSeeOther",
+	http.StatusNotModified:       "StatusNotModified",
+	http.StatusUseProxy:          "StatusUseProxy",
+	http.StatusTemporaryRedirect: "StatusTemporaryRedirect",
+	http.StatusPermanentRedirect: "StatusPermanentRedirect",
 
-	strconv.Itoa(http.StatusBadRequest):                   "http.StatusBadRequest",
-	strconv.Itoa(http.StatusUnauthorized):                 "http.StatusUnauthorized",
-	strconv.Itoa(http.StatusPaymentRequired):              "http.StatusPaymentRequired",
-	strconv.Itoa(http.StatusForbidden):                    "http.StatusForbidden",
-	strconv.Itoa(http.StatusNotFound):                     "http.StatusNotFound",
-	strconv.Itoa(http.StatusMethodNotAllowed):             "http.StatusMethodNotAllowed",
-	strconv.Itoa(http.StatusNotAcceptable):                "http.StatusNotAcceptable",
-	strconv.Itoa(http.StatusProxyAuthRequired):            "http.StatusProxyAuthRequired",
-	strconv.Itoa(http.StatusRequestTimeout):               "http.StatusRequestTimeout",
-	strconv.Itoa(http.StatusConflict):                     "http.StatusConflict",
-	strconv.Itoa(http.StatusGone):                         "http.StatusGone",
-	strconv.Itoa(http.StatusLengthRequired):               "http.StatusLengthRequired",
-	strconv.Itoa(http.StatusPreconditionFailed):           "http.StatusPreconditionFailed",
-	strconv.Itoa(http.StatusRequestEntityTooLarge):        "http.StatusRequestEntityTooLarge",
-	strconv.Itoa(http.StatusRequestURITooLong):            "http.StatusRequestURITooLong",
-	strconv.Itoa(http.StatusUnsupportedMediaType):         "http.StatusUnsupportedMediaType",
-	strconv.Itoa(http.StatusRequestedRangeNotSatisfiable): "http.StatusRequestedRangeNotSatisfiable",
-	strconv.Itoa(http.StatusExpectationFailed):            "http.StatusExpectationFailed",
-	strconv.Itoa(http.StatusTeapot):                       "http.StatusTeapot",
-	strconv.Itoa(http.StatusMisdirectedRequest):           "http.StatusMisdirectedRequest",
-	strconv.Itoa(http.StatusUnprocessableEntity):          "http.StatusUnprocessableEntity",
-	strconv.Itoa(http.StatusLocked):                       "http.StatusLocked",
-	strconv.Itoa(http.StatusFailedDependency):             "http.StatusFailedDependency",
-	strconv.Itoa(http.StatusTooEarly):                     "http.StatusTooEarly",
-	strconv.Itoa(http.StatusUpgradeRequired):              "http.StatusUpgradeRequired",
-	strconv.Itoa(http.StatusPreconditionRequired):         "http.StatusPreconditionRequired",
-	strconv.Itoa(http.StatusTooManyRequests):              "http.StatusTooManyRequests",
-	strconv.Itoa(http.StatusRequestHeaderFieldsTooLarge):  "http.StatusRequestHeaderFieldsTooLarge",
-	strconv.Itoa(http.StatusUnavailableForLegalReasons):   "http.StatusUnavailableForLegalReasons",
+	http.StatusBadRequest:                   "StatusBadRequest",
+	http.StatusUnauthorized:                 "StatusUnauthorized",
+	http.StatusPaymentRequired:              "StatusPaymentRequired",
+	http.StatusForbidden:                    "StatusForbidden",
+	http.StatusNotFound:                     "StatusNotFound",
+	http.StatusMethodNotAllowed:             "StatusMethodNotAllowed",
+	http.StatusNotAcceptable:                "StatusNotAcceptable",
+	http.StatusProxyAuthRequired:            "StatusProxyAuthRequired",
+	http.StatusRequestTimeout:               "StatusRequestTimeout",
+	http.StatusConflict:                     "StatusConflict",
+	http.StatusGone:                         "StatusGone",
+	http.StatusLengthRequired:               "StatusLengthRequired",
+	http.StatusPreconditionFailed:           "StatusPreconditionFailed",
+	http.StatusRequestEntityTooLarge:        "StatusRequestEntityTooLarge",
+	http.StatusRequestURITooLong:            "StatusRequestURITooLong",
+	http.StatusUnsupportedMediaType:         "StatusUnsupportedMediaType",
+	http.StatusRequestedRangeNotSatisfiable: "StatusRequestedRangeNotSatisfiable",
+	http.StatusExpectationFailed:            "StatusExpectationFailed",
+	http.StatusTeapot:                       "StatusTeapot",
+	http.StatusMisdirectedRequest:           "StatusMisdirectedRequest",
+	http.StatusUnprocessableEntity:          "StatusUnprocessableEntity",
+	http.StatusLocked:                       "StatusLocked",
+	http.StatusFailedDependency:             "StatusFailedDependency",
+	http.StatusTooEarly:                     "StatusTooEarly",
+	http.StatusUpgradeRequired:              "StatusUpgradeRequired",
+	http.StatusPreconditionRequired:         "StatusPreconditionRequired",
+	http.StatusTooManyRequests:              "StatusTooManyRequests",
+	http.StatusRequestHeaderFieldsTooLarge:  "StatusRequestHeaderFieldsTooLarge",
+	http.StatusUnavailableForLegalReasons:   "StatusUnavailableForLegalReasons",
 
-	strconv.Itoa(http.StatusInternalServerError):           "http.StatusInternalServerError",
-	strconv.Itoa(http.StatusNotImplemented):                "http.StatusNotImplemented",
-	strconv.Itoa(http.StatusBadGateway):                    "http.StatusBadGateway",
-	strconv.Itoa(http.StatusServiceUnavailable):            "http.StatusServiceUnavailable",
-	strconv.Itoa(http.StatusGatewayTimeout):                "http.StatusGatewayTimeout",
-	strconv.Itoa(http.StatusHTTPVersionNotSupported):       "http.StatusHTTPVersionNotSupported",
-	strconv.Itoa(http.StatusVariantAlsoNegotiates):         "http.StatusVariantAlsoNegotiates",
-	strconv.Itoa(http.StatusInsufficientStorage):           "http.StatusInsufficientStorage",
-	strconv.Itoa(http.StatusLoopDetected):                  "http.StatusLoopDetected",
-	strconv.Itoa(http.StatusNotExtended):                   "http.StatusNotExtended",
-	strconv.Itoa(http.StatusNetworkAuthenticationRequired): "http.StatusNetworkAuthenticationRequired",
+	http.StatusInternalServerError:           "StatusInternalServerError",
+	http.StatusNotImplemented:                "StatusNotImplemented",
+	http.StatusBadGateway:                    "StatusBadGateway",
+	http.StatusServiceUnavailable:            "StatusServiceUnavailable",
+	http.StatusGatewayTimeout:                "StatusGatewayTimeout",
+	http.StatusHTTPVersionNotSupported:       "StatusHTTPVersionNotSupported",
+	http.StatusVariantAlsoNegotiates:         "StatusVariantAlsoNegotiates",
+	http.StatusInsufficientStorage:           "StatusInsufficientStorage",
+	http.StatusLoopDetected:                  "StatusLoopDetected",
+	http.StatusNotExtended:                   "StatusNotExtended",
+	http.StatusNetworkAuthenticationRequired: "StatusNetworkAuthenticationRequired",
+}
+
+// httpNetPkgName returns the local name used for "net/http" in the file containing pos.
+// Returns empty string if net/http is imported via dot-import (symbols accessible unqualified).
+// Falls back to "http" if the import is not found in the file.
+func httpNetPkgName(pass *analysis.Pass, pos token.Pos) string {
+	for _, file := range pass.Files {
+		if file.Pos() <= pos && pos <= file.End() {
+			for _, imp := range file.Imports {
+				path, err := strconv.Unquote(imp.Path.Value)
+				if err != nil || path != "net/http" {
+					continue
+				}
+				if imp.Name != nil {
+					if imp.Name.Name == "." {
+						return "" // dot-import: symbols accessible unqualified
+					}
+					if imp.Name.Name != "_" {
+						return imp.Name.Name
+					}
+				}
+				return "http"
+			}
+			break
+		}
+	}
+	return "http"
 }
 
 func mimicHTTPHandler(pass *analysis.Pass, fType *ast.FuncType) bool {
