@@ -92,11 +92,11 @@ var httpStatusCode = map[int]string{
 	http.StatusNetworkAuthenticationRequired: "StatusNetworkAuthenticationRequired",
 }
 
-// httpNetPkgName returns the local name used for "net/http" in the file containing pos.
-// Returns ("", true) if net/http is imported via dot-import (symbols accessible unqualified).
-// Returns ("", false) if the import is absent or blank-imported (autofix should be skipped).
-func httpNetPkgName(pass *analysis.Pass, pos token.Pos) (string, bool) {
-	return analysisutil.LocalPkgName(pass.Files, pos, "net/http")
+// httpNetPkgName returns the local name for "net/http" in the file containing pos,
+// and an optional TextEdit to add the import when absent (if no conflict exists).
+// Returns ("", nil, false) if net/http is blank-imported or all candidate names are taken.
+func httpNetPkgName(pass *analysis.Pass, pos token.Pos) (string, *analysis.TextEdit, bool) {
+	return addImportFix(pass.Files, pos, "net/http")
 }
 
 func mimicHTTPHandler(pass *analysis.Pass, fType *ast.FuncType) bool {
