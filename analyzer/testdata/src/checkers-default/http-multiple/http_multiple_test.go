@@ -5,6 +5,7 @@ package httpmultiple
 import (
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -27,6 +28,10 @@ func TestHttpMultipleChecker(t *testing.T) {
 	// Invalid: formatted (*f) variants are also detected.
 	assert.HTTPStatusCodef(t, handler, "GET", "/fmt", nil, http.StatusOK, "msg") // want "http-multiple: use httptest\\.NewRecorder\\(\\) instead of multiple HTTP assertions for the same handler call"
 	assert.HTTPBodyContainsf(t, handler, "GET", "/fmt", nil, "hello", "msg")     // want "http-multiple: use httptest\\.NewRecorder\\(\\) instead of multiple HTTP assertions for the same handler call"
+
+	// Invalid: non-nil url.Values query parameters.
+	assert.HTTPStatusCode(t, handler, "GET", "/search", url.Values{"q": {"go"}}, http.StatusOK) // want "http-multiple: use httptest\\.NewRecorder\\(\\) instead of multiple HTTP assertions for the same handler call"
+	assert.HTTPBodyContains(t, handler, "GET", "/search", url.Values{"q": {"go"}}, "result")    // want "http-multiple: use httptest\\.NewRecorder\\(\\) instead of multiple HTTP assertions for the same handler call"
 
 	// Valid: single HTTP assertion.
 	assert.HTTPStatusCode(t, handler, "GET", "/single", nil, http.StatusOK)
@@ -64,4 +69,11 @@ func TestHttpMultipleChecker(t *testing.T) {
 	rr := httptest.NewRecorder()
 	handler(rr, req)
 	assert.Equal(t, http.StatusOK, rr.Code)
+}
+
+// TestHttpMultipleCheckerTT uses a non-"t" TestingT variable to verify the fix
+// extracts the actual identifier from the call rather than hard-coding "t".
+func TestHttpMultipleCheckerTT(tt *testing.T) {
+	assert.HTTPStatusCode(tt, handler, "GET", "/tt-path", nil, http.StatusOK) // want "http-multiple: use httptest\\.NewRecorder\\(\\) instead of multiple HTTP assertions for the same handler call"
+	assert.HTTPBodyContains(tt, handler, "GET", "/tt-path", nil, "hello")     // want "http-multiple: use httptest\\.NewRecorder\\(\\) instead of multiple HTTP assertions for the same handler call"
 }

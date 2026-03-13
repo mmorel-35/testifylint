@@ -5,6 +5,7 @@ package httpmultiple
 import (
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -49,6 +50,16 @@ func TestHttpMultipleChecker(t *testing.T) {
 		assert.Containsf(t, rr.Body.String(), "hello", "msg")
 	}
 
+	// Invalid: non-nil url.Values query parameters.
+	{
+		req := httptest.NewRequest("GET", "/search", nil)
+		req.URL.RawQuery = url.Values{"q": {"go"}}.Encode()
+		rr := httptest.NewRecorder()
+		handler(rr, req)
+		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.Contains(t, rr.Body.String(), "result")
+	}
+
 	// Valid: single HTTP assertion.
 	assert.HTTPStatusCode(t, handler, "GET", "/single", nil, http.StatusOK)
 
@@ -85,4 +96,16 @@ func TestHttpMultipleChecker(t *testing.T) {
 	rr := httptest.NewRecorder()
 	handler(rr, req)
 	assert.Equal(t, http.StatusOK, rr.Code)
+}
+
+// TestHttpMultipleCheckerTT uses a non-"t" TestingT variable to verify the fix
+// extracts the actual identifier from the call rather than hard-coding "t".
+func TestHttpMultipleCheckerTT(tt *testing.T) {
+	{
+		req := httptest.NewRequest("GET", "/tt-path", nil)
+		rr := httptest.NewRecorder()
+		handler(rr, req)
+		assert.Equal(tt, http.StatusOK, rr.Code)
+		assert.Contains(tt, rr.Body.String(), "hello")
+	}
 }

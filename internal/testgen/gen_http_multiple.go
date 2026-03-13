@@ -44,6 +44,7 @@ package {{ .CheckerName.AsPkgName }}
 import (
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -66,6 +67,10 @@ func {{ .CheckerName.AsTestName }}(t *testing.T) {
 	// Invalid: formatted (*f) variants are also detected.
 	assert.HTTPStatusCodef(t, handler, "GET", "/fmt", nil, http.StatusOK, "msg")   // want {{ QuoteReport .Report }}
 	assert.HTTPBodyContainsf(t, handler, "GET", "/fmt", nil, "hello", "msg")       // want {{ QuoteReport .Report }}
+
+	// Invalid: non-nil url.Values query parameters.
+	assert.HTTPStatusCode(t, handler, "GET", "/search", url.Values{"q": {"go"}}, http.StatusOK) // want {{ QuoteReport .Report }}
+	assert.HTTPBodyContains(t, handler, "GET", "/search", url.Values{"q": {"go"}}, "result")    // want {{ QuoteReport .Report }}
 
 	// Valid: single HTTP assertion.
 	assert.HTTPStatusCode(t, handler, "GET", "/single", nil, http.StatusOK)
@@ -104,6 +109,13 @@ func {{ .CheckerName.AsTestName }}(t *testing.T) {
 	handler(rr, req)
 	assert.Equal(t, http.StatusOK, rr.Code)
 }
+
+// {{ .CheckerName.AsTestName }}TT uses a non-"t" TestingT variable to verify the fix
+// extracts the actual identifier from the call rather than hard-coding "t".
+func {{ .CheckerName.AsTestName }}TT(tt *testing.T) {
+	assert.HTTPStatusCode(tt, handler, "GET", "/tt-path", nil, http.StatusOK) // want {{ QuoteReport .Report }}
+	assert.HTTPBodyContains(tt, handler, "GET", "/tt-path", nil, "hello")     // want {{ QuoteReport .Report }}
+}
 `
 
 // httpMultipleGoldenTmpl is the expected state of the test file after all suggested fixes
@@ -115,6 +127,7 @@ package {{ .CheckerName.AsPkgName }}
 import (
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -159,6 +172,16 @@ func {{ .CheckerName.AsTestName }}(t *testing.T) {
 		assert.Containsf(t, rr.Body.String(), "hello", "msg")
 	}
 
+	// Invalid: non-nil url.Values query parameters.
+	{
+		req := httptest.NewRequest("GET", "/search", nil)
+		req.URL.RawQuery = url.Values{"q": {"go"}}.Encode()
+		rr := httptest.NewRecorder()
+		handler(rr, req)
+		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.Contains(t, rr.Body.String(), "result")
+	}
+
 	// Valid: single HTTP assertion.
 	assert.HTTPStatusCode(t, handler, "GET", "/single", nil, http.StatusOK)
 
@@ -195,5 +218,17 @@ func {{ .CheckerName.AsTestName }}(t *testing.T) {
 	rr := httptest.NewRecorder()
 	handler(rr, req)
 	assert.Equal(t, http.StatusOK, rr.Code)
+}
+
+// {{ .CheckerName.AsTestName }}TT uses a non-"t" TestingT variable to verify the fix
+// extracts the actual identifier from the call rather than hard-coding "t".
+func {{ .CheckerName.AsTestName }}TT(tt *testing.T) {
+	{
+		req := httptest.NewRequest("GET", "/tt-path", nil)
+		rr := httptest.NewRecorder()
+		handler(rr, req)
+		assert.Equal(tt, http.StatusOK, rr.Code)
+		assert.Contains(tt, rr.Body.String(), "hello")
+	}
 }
 `
