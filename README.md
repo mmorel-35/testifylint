@@ -337,12 +337,11 @@ assert.NotEqual(t, err, errSentinel)
 ✅
 assert.ErrorContains(t, err, "user not found")
 assert.ErrorIs(t, err, errSentinel)
-assert.EqualError(t, err, "user not found") // for both Equal cases above
-assert.ErrorIs(t, err, errSentinel)
+assert.EqualError(t, err, "user not found") // for both Equal(_, err.Error()) cases above
 assert.NotErrorIs(t, err, errSentinel)
 ```
 
-**Autofix**: partially (`Contains` and `Equal` with `err.Error()` argument(s), `Equal(err, sentinel)`, and `NotEqual(err, sentinel)` cases). <br>
+**Autofix**: partially (`Contains` and `Equal` with `err.Error()` argument(s) cases). <br>
 **Enabled by default**: true. <br>
 **Reason**: The `Error()` method on the `error` interface exists for humans, not code.
 Using `err.Error()` in assertions compares the string representation of an error,

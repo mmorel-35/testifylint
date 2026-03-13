@@ -1,6 +1,8 @@
 package checkers
 
 import (
+	"fmt"
+
 	"golang.org/x/tools/go/analysis"
 
 	"github.com/Antonboom/testifylint/internal/analysisutil"
@@ -107,10 +109,11 @@ func (checker ErrorCompare) checkEqual(pass *analysis.Pass, call *CallMeta) *ana
 	}
 
 	// assert.Equal(t, err, errSentinel) → assert.ErrorIs(t, err, errSentinel)
-	// assert.Equal(t, errSentinel, err) → assert.ErrorIs(t, errSentinel, err)
 	// (only when both arguments implement the error interface and neither is nil)
+	// No autofix: argument order cannot be determined automatically (ErrorIs is not symmetric).
 	if !isNil(a) && !isNil(b) && implementsErrorIface(pass, a) && implementsErrorIface(pass, b) {
-		return newUseFunctionDiagnostic(checker.Name(), call, "ErrorIs")
+		msg := fmt.Sprintf("use %s.ErrorIs", call.SelectorXStr)
+		return newDiagnostic(checker.Name(), call, msg)
 	}
 
 	return nil
@@ -124,9 +127,10 @@ func (checker ErrorCompare) checkNotEqual(pass *analysis.Pass, call *CallMeta) *
 	a, b := call.Args[0], call.Args[1]
 
 	// assert.NotEqual(t, err, errSentinel) → assert.NotErrorIs(t, err, errSentinel)
-	// assert.NotEqual(t, errSentinel, err) → assert.NotErrorIs(t, errSentinel, err)
+	// No autofix: argument order cannot be determined automatically (NotErrorIs is not symmetric).
 	if !isNil(a) && !isNil(b) && implementsErrorIface(pass, a) && implementsErrorIface(pass, b) {
-		return newUseFunctionDiagnostic(checker.Name(), call, "NotErrorIs")
+		msg := fmt.Sprintf("use %s.NotErrorIs", call.SelectorXStr)
+		return newDiagnostic(checker.Name(), call, msg)
 	}
 
 	return nil
