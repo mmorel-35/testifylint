@@ -15,18 +15,39 @@ func handler(w http.ResponseWriter, r *http.Request) {}
 
 func TestHttpMultipleChecker(t *testing.T) {
 	// Invalid: multiple HTTP assertions with the same handler and args.
-	assert.HTTPStatusCode(t, handler, "GET", "/index", nil, http.StatusOK) // want "http-multiple: use httptest\\.NewRecorder\\(\\) instead of multiple HTTP assertions for the same handler call"
-	assert.HTTPBodyContains(t, handler, "GET", "/index", nil, "hello")     // want "http-multiple: use httptest\\.NewRecorder\\(\\) instead of multiple HTTP assertions for the same handler call"
+	{
+		req := httptest.NewRequest("GET", "/index", nil)
+		rr := httptest.NewRecorder()
+		handler(rr, req)
+		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.Contains(t, rr.Body.String(), "hello")
+	}
 
-	assert.HTTPError(t, handler, "GET", "/error", nil)                // want "http-multiple: use httptest\\.NewRecorder\\(\\) instead of multiple HTTP assertions for the same handler call"
-	assert.HTTPBodyContains(t, handler, "GET", "/error", nil, "oops") // want "http-multiple: use httptest\\.NewRecorder\\(\\) instead of multiple HTTP assertions for the same handler call"
+	{
+		req := httptest.NewRequest("GET", "/error", nil)
+		rr := httptest.NewRecorder()
+		handler(rr, req)
+		assert.GreaterOrEqual(t, rr.Code, 400)
+		assert.Contains(t, rr.Body.String(), "oops")
+	}
 
-	require.HTTPRedirect(t, handler, "GET", "/redirect", nil)                     // want "http-multiple: use httptest\\.NewRecorder\\(\\) instead of multiple HTTP assertions for the same handler call"
-	require.HTTPStatusCode(t, handler, "GET", "/redirect", nil, http.StatusFound) // want "http-multiple: use httptest\\.NewRecorder\\(\\) instead of multiple HTTP assertions for the same handler call"
+	{
+		req := httptest.NewRequest("GET", "/redirect", nil)
+		rr := httptest.NewRecorder()
+		handler(rr, req)
+		require.GreaterOrEqual(t, rr.Code, 300)
+		require.Less(t, rr.Code, 400)
+		require.Equal(t, http.StatusFound, rr.Code)
+	}
 
 	// Invalid: formatted (*f) variants are also detected.
-	assert.HTTPStatusCodef(t, handler, "GET", "/fmt", nil, http.StatusOK, "msg") // want "http-multiple: use httptest\\.NewRecorder\\(\\) instead of multiple HTTP assertions for the same handler call"
-	assert.HTTPBodyContainsf(t, handler, "GET", "/fmt", nil, "hello", "msg")     // want "http-multiple: use httptest\\.NewRecorder\\(\\) instead of multiple HTTP assertions for the same handler call"
+	{
+		req := httptest.NewRequest("GET", "/fmt", nil)
+		rr := httptest.NewRecorder()
+		handler(rr, req)
+		assert.Equalf(t, http.StatusOK, rr.Code, "msg")
+		assert.Containsf(t, rr.Body.String(), "hello", "msg")
+	}
 
 	// Valid: single HTTP assertion.
 	assert.HTTPStatusCode(t, handler, "GET", "/single", nil, http.StatusOK)

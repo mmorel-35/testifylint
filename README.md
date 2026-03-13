@@ -101,7 +101,7 @@ https://golangci-lint.run/docs/linters/configuration/#testifylint
 | [float-compare](#float-compare)                     | ✅                  | ❌       |
 | [formatter](#formatter)                             | ✅                  | 🤏      |
 | [go-require](#go-require)                           | ✅                  | ❌       |
-| [http-multiple](#http-multiple)                     | ✅                  | ❌       |
+| [http-multiple](#http-multiple)                     | ✅                  | ✅       |
 | [len](#len)                                         | ✅                  | ✅       |
 | [negative-positive](#negative-positive)             | ✅                  | ✅       |
 | [nil-compare](#nil-compare)                         | ✅                  | ✅       |
@@ -830,7 +830,7 @@ assert.Equal(t, http.StatusOK, w.Code)
 assert.Contains(t, w.Body.String(), "hello")
 ```
 
-**Autofix**: false. <br>
+**Autofix**: true. The checker replaces each group of HTTP assertions with a scoped `httptest` block. <br>
 **Enabled by default**: true. <br>
 **Reason**: Each HTTP assertion function makes a separate HTTP call to the handler. Using multiple HTTP
 assertions with the same handler and arguments means a stateful handler could satisfy the tests

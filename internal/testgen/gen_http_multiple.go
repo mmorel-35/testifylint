@@ -32,8 +32,9 @@ func (HTTPMultipleTestsGenerator) ErroredTemplate() Executor {
 }
 
 func (HTTPMultipleTestsGenerator) GoldenTemplate() Executor {
-	// NOTE: Usually this warning leads to full refactoring of test architecture.
-	return nil
+	return template.Must(template.New("HTTPMultipleTestsGenerator.GoldenTemplate").
+		Funcs(fm).
+		Parse(httpMultipleGoldenTmpl))
 }
 
 const httpMultipleTestTmpl = header + `
@@ -42,6 +43,7 @@ package {{ .CheckerName.AsPkgName }}
 
 import (
 	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -95,5 +97,103 @@ func {{ .CheckerName.AsTestName }}(t *testing.T) {
 	go func() {
 		assert.HTTPBodyContains(t, handler, "GET", "/goroutine", nil, "hello")
 	}()
+
+	// Valid: using httptest directly (the recommended approach).
+	req, _ := http.NewRequest("GET", "/direct", nil)
+	rr := httptest.NewRecorder()
+	handler(rr, req)
+	assert.Equal(t, http.StatusOK, rr.Code)
+}
+`
+
+// httpMultipleGoldenTmpl is the expected state of the test file after all suggested fixes
+// have been applied: each group of HTTP assertions is replaced by a scoped httptest block.
+const httpMultipleGoldenTmpl = header + `
+
+package {{ .CheckerName.AsPkgName }}
+
+import (
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func handler(w http.ResponseWriter, r *http.Request) {}
+
+func {{ .CheckerName.AsTestName }}(t *testing.T) {
+	// Invalid: multiple HTTP assertions with the same handler and args.
+	{
+		req := httptest.NewRequest("GET", "/index", nil)
+		rr := httptest.NewRecorder()
+		handler(rr, req)
+		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.Contains(t, rr.Body.String(), "hello")
+	}
+
+	{
+		req := httptest.NewRequest("GET", "/error", nil)
+		rr := httptest.NewRecorder()
+		handler(rr, req)
+		assert.GreaterOrEqual(t, rr.Code, 400)
+		assert.Contains(t, rr.Body.String(), "oops")
+	}
+
+	{
+		req := httptest.NewRequest("GET", "/redirect", nil)
+		rr := httptest.NewRecorder()
+		handler(rr, req)
+		require.GreaterOrEqual(t, rr.Code, 300)
+		require.Less(t, rr.Code, 400)
+		require.Equal(t, http.StatusFound, rr.Code)
+	}
+
+	// Invalid: formatted (*f) variants are also detected.
+	{
+		req := httptest.NewRequest("GET", "/fmt", nil)
+		rr := httptest.NewRecorder()
+		handler(rr, req)
+		assert.Equalf(t, http.StatusOK, rr.Code, "msg")
+		assert.Containsf(t, rr.Body.String(), "hello", "msg")
+	}
+
+	// Valid: single HTTP assertion.
+	assert.HTTPStatusCode(t, handler, "GET", "/single", nil, http.StatusOK)
+
+	// Valid: different handlers.
+	assert.HTTPSuccess(t, handler, "GET", "/a", nil)
+	assert.HTTPSuccess(t, http.NotFound, "GET", "/a", nil)
+
+	// Valid: different methods.
+	assert.HTTPSuccess(t, handler, "GET", "/b", nil)
+	assert.HTTPSuccess(t, handler, "POST", "/b", nil)
+
+	// Valid: different URLs.
+	assert.HTTPSuccess(t, handler, "GET", "/c", nil)
+	assert.HTTPSuccess(t, handler, "GET", "/d", nil)
+
+	// Valid: same-key assertions in separate closures are independent scopes.
+	t.Run("sub1", func(t *testing.T) {
+		assert.HTTPStatusCode(t, handler, "GET", "/subtest", nil, http.StatusOK)
+	})
+	t.Run("sub2", func(t *testing.T) {
+		assert.HTTPBodyContains(t, handler, "GET", "/subtest", nil, "hello")
+	})
+
+	// Valid: goroutine closure is an independent scope.
+	go func() {
+		assert.HTTPStatusCode(t, handler, "GET", "/goroutine", nil, http.StatusOK)
+	}()
+	go func() {
+		assert.HTTPBodyContains(t, handler, "GET", "/goroutine", nil, "hello")
+	}()
+
+	// Valid: using httptest directly (the recommended approach).
+	req, _ := http.NewRequest("GET", "/direct", nil)
+	rr := httptest.NewRecorder()
+	handler(rr, req)
+	assert.Equal(t, http.StatusOK, rr.Code)
 }
 `
