@@ -3,6 +3,8 @@ package checkers
 import (
 	"fmt"
 	"go/ast"
+	"go/token"
+	"strings"
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/ast/inspector"
@@ -71,6 +73,18 @@ func (checker SuiteTestName) Check(pass *analysis.Pass, insp *inspector.Inspecto
 				return false
 			}
 
+			// Only lint top-level test runner functions:
+			// no receiver, name starts with "Test", and takes a *testing.T parameter.
+			if fd.Recv != nil {
+				return false
+			}
+			if !strings.HasPrefix(fd.Name.Name, "Test") {
+				return false
+			}
+			if !hasStdTestingTParam(pass, fd.Type) {
+				return false
+			}
+
 			if fd.Name.Name == expectedFnName {
 				return false
 			}
@@ -112,7 +126,7 @@ func extractSuiteTypeName(expr ast.Expr) string {
 		}
 	case *ast.UnaryExpr:
 		// &SomeSuite{...}
-		if e.Op.String() == "&" {
+		if e.Op == token.AND {
 			if cl, ok := e.X.(*ast.CompositeLit); ok {
 				if id, ok := cl.Type.(*ast.Ident); ok {
 					return id.Name

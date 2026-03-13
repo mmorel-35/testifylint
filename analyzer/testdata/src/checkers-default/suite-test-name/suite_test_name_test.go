@@ -43,3 +43,25 @@ type GoodNameSuite2 struct {
 func TestGoodNameSuite2(t *testing.T) {
 	suite.Run(t, &GoodNameSuite2{})
 }
+
+// Good: non-test helper function that wraps suite.Run – should not be reported.
+type GoodNameSuite3 struct {
+	suite.Suite
+}
+
+func runGoodNameSuite3(t *testing.T) {
+	suite.Run(t, new(GoodNameSuite3))
+}
+
+// Good: suite method wrapping suite.Run – should not be reported (has a receiver).
+type GoodNameSuite4 struct {
+	suite.Suite
+}
+
+func TestGoodNameSuite4(t *testing.T) {
+	suite.Run(t, new(GoodNameSuite4))
+}
+
+func (s *GoodNameSuite4) helperRun(t *testing.T) {
+	suite.Run(t, new(GoodNameSuite4))
+}
