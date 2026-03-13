@@ -61,6 +61,10 @@ func {{ .CheckerName.AsTestName }}(t *testing.T) {
 	require.HTTPRedirect(t, handler, "GET", "/redirect", nil)                        // want {{ QuoteReport .Report }}
 	require.HTTPStatusCode(t, handler, "GET", "/redirect", nil, http.StatusFound)    // want {{ QuoteReport .Report }}
 
+	// Invalid: formatted (*f) variants are also detected.
+	assert.HTTPStatusCodef(t, handler, "GET", "/fmt", nil, http.StatusOK, "msg")   // want {{ QuoteReport .Report }}
+	assert.HTTPBodyContainsf(t, handler, "GET", "/fmt", nil, "hello", "msg")       // want {{ QuoteReport .Report }}
+
 	// Valid: single HTTP assertion.
 	assert.HTTPStatusCode(t, handler, "GET", "/single", nil, http.StatusOK)
 
@@ -75,5 +79,21 @@ func {{ .CheckerName.AsTestName }}(t *testing.T) {
 	// Valid: different URLs.
 	assert.HTTPSuccess(t, handler, "GET", "/c", nil)
 	assert.HTTPSuccess(t, handler, "GET", "/d", nil)
+
+	// Valid: same-key assertions in separate closures are independent scopes.
+	t.Run("sub1", func(t *testing.T) {
+		assert.HTTPStatusCode(t, handler, "GET", "/subtest", nil, http.StatusOK)
+	})
+	t.Run("sub2", func(t *testing.T) {
+		assert.HTTPBodyContains(t, handler, "GET", "/subtest", nil, "hello")
+	})
+
+	// Valid: goroutine closure is an independent scope.
+	go func() {
+		assert.HTTPStatusCode(t, handler, "GET", "/goroutine", nil, http.StatusOK)
+	}()
+	go func() {
+		assert.HTTPBodyContains(t, handler, "GET", "/goroutine", nil, "hello")
+	}()
 }
 `
