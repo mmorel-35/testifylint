@@ -101,6 +101,7 @@ https://golangci-lint.run/docs/linters/configuration/#testifylint
 | [float-compare](#float-compare)                     | ✅                  | ❌       |
 | [formatter](#formatter)                             | ✅                  | 🤏      |
 | [go-require](#go-require)                           | ✅                  | ❌       |
+| [http-multiple](#http-multiple)                     | ✅                  | ❌       |
 | [len](#len)                                         | ✅                  | ✅       |
 | [negative-positive](#negative-positive)             | ✅                  | ✅       |
 | [nil-compare](#nil-compare)                         | ✅                  | ✅       |
@@ -811,6 +812,30 @@ that services the HTTP connection. Terminating these goroutines can lead to unde
 tests. You can turn off the check using the `--go-require.ignore-http-handlers` flag.
 
 P.S. Look at [testify's issue](https://github.com/stretchr/testify/issues/772), related to assertions in the goroutines.
+
+---
+
+### http-multiple
+
+```go
+❌
+assert.HTTPStatusCode(t, handler, "GET", "/path", nil, http.StatusOK)
+assert.HTTPBodyContains(t, handler, "GET", "/path", nil, "hello")
+
+✅
+r := httptest.NewRequest("GET", "/path", nil)
+w := httptest.NewRecorder()
+handler(w, r)
+assert.Equal(t, http.StatusOK, w.Code)
+assert.Contains(t, w.Body.String(), "hello")
+```
+
+**Autofix**: false. <br>
+**Enabled by default**: true. <br>
+**Reason**: Each HTTP assertion function makes a separate HTTP call to the handler. Using multiple HTTP
+assertions with the same handler and arguments means a stateful handler could satisfy the tests
+independently but not in a single call. Use `httptest.NewRecorder()` to make a single HTTP call and
+assert multiple properties of the response.
 
 ---
 
