@@ -98,14 +98,26 @@ func isStdlibPath(pkgPath string) bool {
 // freshImportLocalName returns a non-conflicting local name for an import of pkgPath.
 // It starts with preferred and tries preferred1, preferred2, …, up to maxImportNameRetries.
 // Returns "" if no suitable name is found.
+//
+// The check covers both existing import local names and package-level (file-scope)
+// identifiers, because imported package names and top-level declarations share the
+// same file namespace.
 func freshImportLocalName(file *ast.File, preferred, pkgPath string) string {
 	used := usedImportLocalNames(file, pkgPath)
-	if _, taken := used[preferred]; !taken {
+	topLevel := fileTopLevelNames(file)
+
+	isAvailable := func(name string) bool {
+		_, importTaken := used[name]
+		_, topLevelTaken := topLevel[name]
+		return !importTaken && !topLevelTaken
+	}
+
+	if isAvailable(preferred) {
 		return preferred
 	}
 	for i := 1; i <= maxImportNameRetries; i++ {
 		candidate := fmt.Sprintf("%s%d", preferred, i)
-		if _, taken := used[candidate]; !taken {
+		if isAvailable(candidate) {
 			return candidate
 		}
 	}
@@ -127,6 +139,33 @@ func usedImportLocalNames(file *ast.File, excludePath string) map[string]struct{
 			}
 		} else {
 			names[importBaseName(p)] = struct{}{}
+		}
+	}
+	return names
+}
+
+// fileTopLevelNames returns the set of names declared at file (package) scope:
+// function names, variable names, constant names, and type names.
+// These share the file-level namespace with imported package qualifiers.
+func fileTopLevelNames(file *ast.File) map[string]struct{} {
+	names := make(map[string]struct{})
+	for _, decl := range file.Decls {
+		switch d := decl.(type) {
+		case *ast.FuncDecl:
+			if d.Name != nil {
+				names[d.Name.Name] = struct{}{}
+			}
+		case *ast.GenDecl:
+			for _, spec := range d.Specs {
+				switch s := spec.(type) {
+				case *ast.ValueSpec: // var and const
+					for _, name := range s.Names {
+						names[name.Name] = struct{}{}
+					}
+				case *ast.TypeSpec:
+					names[s.Name.Name] = struct{}{}
+				}
+			}
 		}
 	}
 	return names
