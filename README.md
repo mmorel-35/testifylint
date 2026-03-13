@@ -963,6 +963,24 @@ require.ErrorAs(t, err, &target)
 // And so on...
 ```
 
+Additionally, `require-error` detects redundant `Error` assertions before `EqualError`
+or `ErrorContains` on the same variable, since both already check the error message
+(which implies the error is not nil):
+
+```go
+❌
+require.Error(t, err)
+assert.EqualError(t, err, "user not found") // Error above is redundant
+
+require.Error(t, err)
+assert.ErrorContains(t, err, "user not found") // Error above is redundant
+
+✅
+assert.EqualError(t, err, "user not found")
+
+assert.ErrorContains(t, err, "user not found")
+```
+
 **Autofix**: false. <br>
 **Enabled by default**: true. <br>
 **Reason**: Such "ignoring" of errors leads to further panics, making the test harder to debug.

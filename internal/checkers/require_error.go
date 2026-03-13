@@ -6,9 +6,14 @@ import (
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/ast/inspector"
+
+	"github.com/Antonboom/testifylint/internal/analysisutil"
 )
 
-const requireErrorReport = "for error assertions use require"
+const (
+	requireErrorReport   = "for error assertions use require"
+	redundantErrorReport = "redundant assertion"
+)
 
 // RequireError detects error assertions like
 //
@@ -26,6 +31,16 @@ const requireErrorReport = "for error assertions use require"
 //	require.ErrorIs(t, err, io.EOF)
 //	require.ErrorAs(t, err, &target)
 //	...
+//
+// Additionally, RequireError detects redundant Error assertions before EqualError
+// or ErrorContains on the same variable, since both already check that the error
+// message is not empty (implying the error is not nil):
+//
+//	require.Error(t, err)
+//	assert.EqualError(t, err, "user not found")
+//
+//	require.Error(t, err)
+//	assert.ErrorContains(t, err, "user not found")
 //
 // RequireError ignores:
 // - assertions in the `if` condition;
@@ -107,6 +122,7 @@ func (checker RequireError) Check(pass *analysis.Pass, insp *inspector.Inspector
 	}
 
 	markCallsInNoErrorSequence(callsByBlock)
+	markRedundantErrorCalls(pass, callsByBlock)
 
 	for funcInfo, calls := range callsByFunc {
 		for i, c := range calls {
@@ -117,6 +133,15 @@ func (checker RequireError) Check(pass *analysis.Pass, insp *inspector.Inspector
 			if c.testifyCall == nil {
 				continue
 			}
+
+			// Report redundant Error assertions (both assert.Error and require.Error).
+			// These should be removed rather than converted to require.
+			if c.inRedundantErrorSeq {
+				diagnostics = append(diagnostics,
+					*newDiagnostic(checker.Name(), c.testifyCall, redundantErrorReport))
+				continue
+			}
+
 			if !c.testifyCall.IsAssert {
 				continue
 			}
@@ -242,8 +267,51 @@ type callMeta struct {
 	inIfCond     bool // True for code like `if assert.ErrorAs(t, err, &target) {`.
 	inBoolExpr   bool // True for code like `assert.Error(t, err) && assert.ErrorContains(t, err, "value")`
 	inNoErrorSeq bool // True for sequence of `assert.NoError` assertions.
+	inRedundantErrorSeq bool // True when Error is redundant because next assertion already implies err != nil.
 }
 
 func isNoErrorAssertion(fnName string) bool {
 	return (fnName == "NoError") || (fnName == "NoErrorf")
+}
+
+// markRedundantErrorCalls marks Error assertions as redundant when immediately
+// followed in the same block by EqualError or ErrorContains on the same variable.
+// EqualError and ErrorContains already imply that the error is not nil (they check
+// the error message), making a preceding Error assertion superfluous.
+func markRedundantErrorCalls(pass *analysis.Pass, callsByBlock map[*ast.BlockStmt][]*callMeta) {
+	for _, calls := range callsByBlock {
+		for i, c := range calls {
+			if c.testifyCall == nil || c.testifyCall.Fn.Name != "Error" {
+				continue
+			}
+			if len(c.testifyCall.Args) < 1 {
+				continue
+			}
+			if i+1 >= len(calls) {
+				continue
+			}
+
+			next := calls[i+1]
+			if next.testifyCall == nil {
+				continue
+			}
+
+			switch next.testifyCall.Fn.NameFTrimmed {
+			case "EqualError", "ErrorContains":
+			default:
+				continue
+			}
+
+			if len(next.testifyCall.Args) < 1 {
+				continue
+			}
+
+			errVar := analysisutil.NodeString(pass.Fset, c.testifyCall.Args[0])
+			nextErrVar := analysisutil.NodeString(pass.Fset, next.testifyCall.Args[0])
+
+			if errVar == nextErrVar {
+				calls[i].inRedundantErrorSeq = true
+			}
+		}
+	}
 }
