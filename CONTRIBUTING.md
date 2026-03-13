@@ -136,6 +136,7 @@ Describe a new checker in [checkers section](./README.md#checkers).
 - [equal-values](#equal-values)
 - [graceful-teardown](#graceful-teardown)
 - [float-compare](#float-compare)
+- [http-const](#http-const)
 - [http-sugar](#http-sugar)
 - [require-len](#require-len)
 
