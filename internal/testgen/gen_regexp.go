@@ -54,6 +54,8 @@ func (g RegexpTestsGenerator) TemplateData() any {
 			{Fn: "NotRegexp", Argsf: "`\\[.*\\] TRACE message`, out"},
 			{Fn: "Regexp", Argsf: "compiledRegexp, out"},
 			{Fn: "NotRegexp", Argsf: "compiledRegexp, out"},
+			{Fn: "Regexp", Argsf: "rxAlias, out"},
+			{Fn: "NotRegexp", Argsf: "rxAlias, out"},
 		},
 	}
 }
@@ -81,9 +83,19 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// myRxAlias is a type alias for *regexp.Regexp used to verify that alias types are accepted.
+type myRxAlias = *regexp.Regexp
+
+// assertRegexpGeneric demonstrates that type parameters are accepted conservatively.
+func assertRegexpGeneric[T ~string](t *testing.T, rx T, str string) {
+	assert.Regexp(t, rx, str)
+	assert.NotRegexp(t, rx, str)
+}
+
 func {{ .CheckerName.AsTestName }}(t *testing.T) {
 	var out string
 	compiledRegexp := regexp.MustCompile(` + "`" + `\w+` + "`" + `)
+	var rxAlias myRxAlias = regexp.MustCompile(` + "`" + `\w+` + "`" + `)
 
 	// Invalid: regexp.MustCompile usage.
 	{

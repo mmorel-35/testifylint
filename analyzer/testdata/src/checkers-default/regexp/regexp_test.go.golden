@@ -9,9 +9,19 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// myRxAlias is a type alias for *regexp.Regexp used to verify that alias types are accepted.
+type myRxAlias = *regexp.Regexp
+
+// assertRegexpGeneric demonstrates that type parameters are accepted conservatively.
+func assertRegexpGeneric[T ~string](t *testing.T, rx T, str string) {
+	assert.Regexp(t, rx, str)
+	assert.NotRegexp(t, rx, str)
+}
+
 func TestRegexpChecker(t *testing.T) {
 	var out string
 	compiledRegexp := regexp.MustCompile(`\w+`)
+	var rxAlias myRxAlias = regexp.MustCompile(`\w+`)
 
 	// Invalid: regexp.MustCompile usage.
 	{
@@ -39,5 +49,9 @@ func TestRegexpChecker(t *testing.T) {
 		assert.Regexpf(t, compiledRegexp, out, "msg with args %d %s", 42, "42")
 		assert.NotRegexp(t, compiledRegexp, out)
 		assert.NotRegexpf(t, compiledRegexp, out, "msg with args %d %s", 42, "42")
+		assert.Regexp(t, rxAlias, out)
+		assert.Regexpf(t, rxAlias, out, "msg with args %d %s", 42, "42")
+		assert.NotRegexp(t, rxAlias, out)
+		assert.NotRegexpf(t, rxAlias, out, "msg with args %d %s", 42, "42")
 	}
 }

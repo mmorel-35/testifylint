@@ -56,24 +56,31 @@ func (checker Regexp) Check(pass *analysis.Pass, call *CallMeta) *analysis.Diagn
 }
 
 // isStringOrRegexpType returns true if the expression is of string type (including untyped string
-// and string-based type aliases) or *regexp.Regexp type.
+// and string-based type aliases), *regexp.Regexp type (including type aliases), or a type parameter
+// (accepted conservatively to avoid false positives in generic code).
 func isStringOrRegexpType(pass *analysis.Pass, e ast.Expr) bool {
 	t := pass.TypesInfo.TypeOf(e)
 	if t == nil {
 		return false
 	}
 
-	// Check for string types (includes string, untyped string, and string-underlying type aliases).
-	if bt, ok := t.Underlying().(*types.Basic); ok && bt.Info()&types.IsString != 0 {
+	// Conservatively accept type parameters to avoid false positives in generic code.
+	if _, ok := types.Unalias(t).(*types.TypeParam); ok {
 		return true
 	}
 
-	// Check for *regexp.Regexp.
-	ptr, ok := t.(*types.Pointer)
+	// Check for string types (includes string, untyped string, and string-underlying type aliases).
+	if isUnderlying(pass, e, types.IsString) {
+		return true
+	}
+
+	// Check for *regexp.Regexp (using Unalias on both the type and pointer element to handle
+	// type aliases such as `type MyRx = *regexp.Regexp` or `type MyRegexp = regexp.Regexp`).
+	ptr, ok := types.Unalias(t).(*types.Pointer)
 	if !ok {
 		return false
 	}
-	named, ok := ptr.Elem().(*types.Named)
+	named, ok := types.Unalias(ptr.Elem()).(*types.Named)
 	if !ok {
 		return false
 	}
