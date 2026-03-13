@@ -24,10 +24,10 @@ func TestErrorCompareChecker(t *testing.T) {
 	assert.EqualErrorf(t, err, "user not found", "msg with args %d %s", 42, "42")    // want "error-compare: use assert\\.EqualErrorf"
 	assert.EqualError(t, err, "user not found")                                      // want "error-compare: use assert\\.EqualError"
 	assert.EqualErrorf(t, err, "user not found", "msg with args %d %s", 42, "42")    // want "error-compare: use assert\\.EqualErrorf"
-	assert.Equal(t, err, errSentinel)                                                // want "error-compare: use assert\\.ErrorIs"
-	assert.Equal(t, errSentinel, err)                                                // want "error-compare: use assert\\.ErrorIs"
-	assert.NotEqual(t, err, errSentinel)                                             // want "error-compare: use assert\\.NotErrorIs"
-	assert.NotEqual(t, errSentinel, err)                                             // want "error-compare: use assert\\.NotErrorIs"
+	assert.ErrorIs(t, err, errSentinel)                                              // want "error-compare: use assert\\.ErrorIs"
+	assert.ErrorIs(t, errSentinel, err)                                              // want "error-compare: use assert\\.ErrorIs"
+	assert.NotErrorIs(t, err, errSentinel)                                           // want "error-compare: use assert\\.NotErrorIs"
+	assert.NotErrorIs(t, errSentinel, err)                                           // want "error-compare: use assert\\.NotErrorIs"
 
 	// Valid.
 	assert.ErrorContains(t, err, "user not found")

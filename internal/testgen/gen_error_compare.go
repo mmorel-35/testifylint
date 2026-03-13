@@ -79,9 +79,7 @@ func {{ .CheckerName.AsTestName }}(t *testing.T) {
 }
 `
 
-// Golden file: contains the expected fixed code.
-// Cases with autofix (Contains→ErrorContains/ErrorIs, Equal(err.Error())→EqualError) are fixed.
-// Cases without autofix (Equal/NotEqual comparing two errors) remain unchanged.
+// Golden file: contains the expected fixed code after autofix is applied for all cases.
 const errorCompareGoldenTmpl = header + `
 
 package {{ .CheckerName.AsPkgName }}
@@ -108,10 +106,10 @@ func {{ .CheckerName.AsTestName }}(t *testing.T) {
 	assert.EqualErrorf(t, err, "user not found", "msg with args %d %s", 42, "42")              // want "error-compare: use assert\\.EqualErrorf"
 	assert.EqualError(t, err, "user not found")                                                 // want "error-compare: use assert\\.EqualError"
 	assert.EqualErrorf(t, err, "user not found", "msg with args %d %s", 42, "42")              // want "error-compare: use assert\\.EqualErrorf"
-	assert.Equal(t, err, errSentinel)                                                           // want "error-compare: use assert\\.ErrorIs"
-	assert.Equal(t, errSentinel, err)                                                           // want "error-compare: use assert\\.ErrorIs"
-	assert.NotEqual(t, err, errSentinel)                                                        // want "error-compare: use assert\\.NotErrorIs"
-	assert.NotEqual(t, errSentinel, err)                                                        // want "error-compare: use assert\\.NotErrorIs"
+	assert.ErrorIs(t, err, errSentinel)                                                         // want "error-compare: use assert\\.ErrorIs"
+	assert.ErrorIs(t, errSentinel, err)                                                         // want "error-compare: use assert\\.ErrorIs"
+	assert.NotErrorIs(t, err, errSentinel)                                                      // want "error-compare: use assert\\.NotErrorIs"
+	assert.NotErrorIs(t, errSentinel, err)                                                      // want "error-compare: use assert\\.NotErrorIs"
 
 	// Valid.
 	assert.ErrorContains(t, err, "user not found")

@@ -342,7 +342,7 @@ assert.ErrorIs(t, err, errSentinel)
 assert.NotErrorIs(t, err, errSentinel)
 ```
 
-**Autofix**: partially (`Contains` and `Equal(err.Error(), ...)` cases). <br>
+**Autofix**: partially (`Contains` and `Equal` with `err.Error()` argument(s), `Equal(err, sentinel)`, and `NotEqual(err, sentinel)` cases). <br>
 **Enabled by default**: true. <br>
 **Reason**: The `Error()` method on the `error` interface exists for humans, not code.
 Using `err.Error()` in assertions compares the string representation of an error,
