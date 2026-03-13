@@ -37,7 +37,7 @@ func (checker SuiteTestName) Check(pass *analysis.Pass, insp *inspector.Inspecto
 			return false
 		}
 
-		ce := node.(*ast.CallExpr) // suite.Run(t, new(SomeSuite))
+		ce := node.(*ast.CallExpr) // e.g. suite.Run(t, new(SomeSuite))
 
 		// Check that the call is suite.Run.
 		se, ok := ce.Fun.(*ast.SelectorExpr)
@@ -92,7 +92,7 @@ func (checker SuiteTestName) Check(pass *analysis.Pass, insp *inspector.Inspecto
 			msg := fmt.Sprintf("suite test function name %s does not match suite name (expected %s)",
 				fd.Name.Name, expectedFnName)
 			d := newDiagnostic(checker.Name(), fd.Name, msg, analysis.SuggestedFix{
-				Message: fmt.Sprintf("Rename to %s", expectedFnName),
+				Message: "Rename to " + expectedFnName,
 				TextEdits: []analysis.TextEdit{
 					{
 						Pos:     fd.Name.Pos(),
@@ -116,7 +116,7 @@ func (checker SuiteTestName) Check(pass *analysis.Pass, insp *inspector.Inspecto
 func extractSuiteTypeName(expr ast.Expr) string {
 	switch e := expr.(type) {
 	case *ast.CallExpr:
-		// new(SomeSuite)
+		// Handles new(SomeSuite) form.
 		if ident, ok := e.Fun.(*ast.Ident); ok && ident.Name == "new" {
 			if len(e.Args) == 1 {
 				if id, ok := e.Args[0].(*ast.Ident); ok {
