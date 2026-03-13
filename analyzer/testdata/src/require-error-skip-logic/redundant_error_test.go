@@ -34,6 +34,8 @@ func Test_RequireError_RedundantError(t *testing.T) {
 	assert.EqualError(t, err2, "end of file")   // want "require-error: for error assertions use require"
 
 	// assert.Errorf (formatted version) is NOT treated as redundant.
+	// Errorf provides a custom failure message that is useful on its own,
+	// even when followed by a more specific assertion.
 	assert.Errorf(t, err, "checking error") // want "require-error: for error assertions use require"
 	assert.EqualError(t, err, "end of file") // want "require-error: for error assertions use require"
 

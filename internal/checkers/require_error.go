@@ -278,9 +278,15 @@ func isNoErrorAssertion(fnName string) bool {
 // followed in the same block by EqualError or ErrorContains on the same variable.
 // EqualError and ErrorContains already imply that the error is not nil (they check
 // the error message), making a preceding Error assertion superfluous.
+//
+// Note: only the non-formatted Error (not Errorf) is considered redundant. Errorf
+// provides a custom failure message that has independent value even when followed by
+// a more specific check.
 func markRedundantErrorCalls(pass *analysis.Pass, callsByBlock map[*ast.BlockStmt][]*callMeta) {
 	for _, calls := range callsByBlock {
 		for i, c := range calls {
+			// Use Fn.Name (not NameFTrimmed) to exclude Errorf intentionally.
+			// Errorf provides a custom failure message that is useful on its own.
 			if c.testifyCall == nil || c.testifyCall.Fn.Name != "Error" {
 				continue
 			}
