@@ -111,6 +111,7 @@ https://golangci-lint.run/docs/linters/configuration/#testifylint
 | [suite-extra-assert-call](#suite-extra-assert-call) | ✅                  | ✅       |
 | [suite-method-signature](#suite-method-signature)   | ✅                  | ❌       |
 | [suite-subtest-run](#suite-subtest-run)             | ✅                  | ❌       |
+| [suite-test-name](#suite-test-name)                 | ❌                  | ✅       |
 | [suite-thelper](#suite-thelper)                     | ❌                  | ✅       |
 | [useless-assert](#useless-assert)                   | ✅                  | ❌       |
 
@@ -1141,6 +1142,35 @@ Autofix is disabled because in the most cases it requires rewriting the assertio
 code.
 
 The checker is especially useful in combination with [suite-dont-use-pkg](#suite-dont-use-pkg).
+
+---
+
+### suite-test-name
+
+```go
+import (
+    "testing"
+    "github.com/stretchr/testify/suite"
+)
+
+type BalanceSubscriptionSuite struct {
+    suite.Suite
+}
+
+❌
+func TestBalanceSubs_Run(t *testing.T) {
+    suite.Run(t, new(BalanceSubscriptionSuite))
+}
+
+✅
+func TestBalanceSubscriptionSuite(t *testing.T) {
+    suite.Run(t, new(BalanceSubscriptionSuite))
+}
+```
+
+**Autofix**: true. <br>
+**Enabled by default**: false. <br>
+**Reason**: Just unification of approach.
 
 ---
 
