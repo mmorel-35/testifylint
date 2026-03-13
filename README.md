@@ -95,6 +95,7 @@ https://golangci-lint.run/docs/linters/configuration/#testifylint
 | [empty](#empty)                                     | ✅                  | ✅       |
 | [encoded-compare](#encoded-compare)                 | ✅                  | ✅       |
 | [equal-values](#equal-values)                       | ✅                  | ✅       |
+| [error-compare](#error-compare)                     | ✅                  | 🤏      |
 | [error-is-as](#error-is-as)                         | ✅                  | 🤏      |
 | [error-nil](#error-nil)                             | ✅                  | ✅       |
 | [expected-actual](#expected-actual)                 | ✅                  | ✅       |
@@ -319,6 +320,34 @@ require.Contains(t, logLines[0], `"params":{"query":"test statement"}`)
 ```
 
 </details>
+
+---
+
+### error-compare
+
+```go
+❌
+assert.Contains(t, err.Error(), "user not found")
+assert.Contains(t, err.Error(), errSentinel.Error())
+assert.Equal(t, err.Error(), "user not found")
+assert.Equal(t, "user not found", err.Error())
+assert.Equal(t, err, errSentinel)
+assert.NotEqual(t, err, errSentinel)
+
+✅
+assert.ErrorContains(t, err, "user not found")
+assert.ErrorIs(t, err, errSentinel)
+assert.EqualError(t, err, "user not found") // for both Equal cases above
+assert.ErrorIs(t, err, errSentinel)
+assert.NotErrorIs(t, err, errSentinel)
+```
+
+**Autofix**: partially (`Contains` and `Equal(err.Error(), ...)` cases). <br>
+**Enabled by default**: true. <br>
+**Reason**: The `Error()` method on the `error` interface exists for humans, not code.
+Using `err.Error()` in assertions compares the string representation of an error,
+which is fragile and ignores the error chain.
+Use dedicated testify error assertions (`ErrorContains`, `ErrorIs`, `EqualError`, etc.) instead.
 
 ---
 
