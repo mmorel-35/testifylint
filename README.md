@@ -101,6 +101,7 @@ https://golangci-lint.run/docs/linters/configuration/#testifylint
 | [float-compare](#float-compare)                     | ✅                  | ❌       |
 | [formatter](#formatter)                             | ✅                  | 🤏      |
 | [go-require](#go-require)                           | ✅                  | ❌       |
+| [http-const](#http-const)                           | ✅                  | ✅       |
 | [len](#len)                                         | ✅                  | ✅       |
 | [negative-positive](#negative-positive)             | ✅                  | ✅       |
 | [nil-compare](#nil-compare)                         | ✅                  | ✅       |
@@ -811,6 +812,24 @@ that services the HTTP connection. Terminating these goroutines can lead to unde
 tests. You can turn off the check using the `--go-require.ignore-http-handlers` flag.
 
 P.S. Look at [testify's issue](https://github.com/stretchr/testify/issues/772), related to assertions in the goroutines.
+
+---
+
+### http-const
+
+```go
+❌
+assert.HTTPStatusCode(t, handler, "GET", "/index", nil, 200)
+assert.HTTPBodyContains(t, handler, "GET", "/index", nil, "counter")
+
+✅
+assert.HTTPStatusCode(t, handler, http.MethodGet, "/index", nil, http.StatusOK)
+assert.HTTPBodyContains(t, handler, http.MethodGet, "/index", nil, "counter")
+```
+
+**Autofix**: true. <br>
+**Enabled by default**: true. <br>
+**Reason**: Cleaner code and meaningful constants instead of magical numbers/identifiers. This checker is similar to the [usestdlibvars](https://golangci-lint.run/usage/linters/#usestdlibvars) linter. <br>
 
 ---
 
