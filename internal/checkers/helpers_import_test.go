@@ -1,9 +1,11 @@
-package checkers
+package checkers_test
 
 import (
 	"go/parser"
 	"go/token"
 	"testing"
+
+	"github.com/Antonboom/testifylint/internal/checkers"
 )
 
 func TestFreshImportLocalName_TopLevelCollision(t *testing.T) {
@@ -24,9 +26,9 @@ func TestFoo(t *testing.T) { _ = t }
 		t.Fatalf("parse error: %v", err)
 	}
 
-	name := freshImportLocalName(f, "http", "net/http")
+	name := checkers.FreshImportLocalName(f, "http", "net/http")
 	if name != "http1" {
-		t.Errorf("freshImportLocalName = %q, want %q", name, "http1")
+		t.Errorf("FreshImportLocalName = %q, want %q", name, "http1")
 	}
 }
 
@@ -47,9 +49,9 @@ func TestFoo(t *testing.T) { _ = t }
 		t.Fatalf("parse error: %v", err)
 	}
 
-	name := freshImportLocalName(f, "http", "net/http")
+	name := checkers.FreshImportLocalName(f, "http", "net/http")
 	if name != "http1" {
-		t.Errorf("freshImportLocalName = %q, want %q", name, "http1")
+		t.Errorf("FreshImportLocalName = %q, want %q", name, "http1")
 	}
 }
 
@@ -68,9 +70,9 @@ func TestFoo(t *testing.T) { _ = t }
 		t.Fatalf("parse error: %v", err)
 	}
 
-	name := freshImportLocalName(f, "http", "net/http")
+	name := checkers.FreshImportLocalName(f, "http", "net/http")
 	if name != "http" {
-		t.Errorf("freshImportLocalName = %q, want %q", name, "http")
+		t.Errorf("FreshImportLocalName = %q, want %q", name, "http")
 	}
 }
 
@@ -95,15 +97,15 @@ func TestFoo(t *testing.T) { _ = t }
 		t.Fatalf("parse error: %v", err)
 	}
 
-	names := fileTopLevelNames(f)
+	names := checkers.FileTopLevelNames(f)
 
 	for _, want := range []string{"myConst", "myVar", "MyType", "myFunc", "TestFoo"} {
 		if _, ok := names[want]; !ok {
-			t.Errorf("fileTopLevelNames missing %q", want)
+			t.Errorf("FileTopLevelNames missing %q", want)
 		}
 	}
 	// Import names should NOT appear in top-level names.
 	if _, ok := names["testing"]; ok {
-		t.Errorf("fileTopLevelNames unexpectedly contains import name %q", "testing")
+		t.Errorf("FileTopLevelNames unexpectedly contains import name %q", "testing")
 	}
 }

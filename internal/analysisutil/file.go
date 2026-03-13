@@ -29,11 +29,11 @@ func Imports(file *ast.File, pkgs ...string) bool {
 			continue
 		}
 
-		path, err := strconv.Unquote(i.Path.Value)
+		importPath, err := strconv.Unquote(i.Path.Value)
 		if err != nil {
 			continue
 		}
-		if slices.Contains(pkgs, path) { // Small O(n).
+		if slices.Contains(pkgs, importPath) { // Small O(n).
 			return true
 		}
 	}
@@ -49,7 +49,7 @@ func Imports(file *ast.File, pkgs ...string) bool {
 // ("", false) when the import is not found in the file or uses a blank name "_".
 func LocalPkgName(files []*ast.File, pos token.Pos, pkgPath string) (string, bool) {
 	for _, file := range files {
-		if !(file.Pos() <= pos && pos <= file.End()) {
+		if file.Pos() > pos || pos > file.End() {
 			continue
 		}
 		for _, imp := range file.Imports {

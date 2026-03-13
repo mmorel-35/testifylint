@@ -8,6 +8,7 @@ import (
 
 	"golang.org/x/tools/go/analysis"
 )
+
 // HTTPConst detects situations like
 //
 //	assert.HTTPStatusCode(t, handler, "GET", "/index", nil, 200)
@@ -81,7 +82,7 @@ func (checker HTTPConst) Check(pass *analysis.Pass, call *CallMeta) *analysis.Di
 	return nil
 }
 
-func newHTTPMethodTextEdit(pass *analysis.Pass, e ast.Expr) (*analysis.TextEdit, *analysis.TextEdit) {
+func newHTTPMethodTextEdit(pass *analysis.Pass, e ast.Expr) (valueEdit *analysis.TextEdit, importEdit *analysis.TextEdit) {
 	bt, ok := typeSafeBasicLit(e, token.STRING)
 	if !ok {
 		return nil, nil
@@ -105,7 +106,7 @@ func newHTTPMethodTextEdit(pass *analysis.Pass, e ast.Expr) (*analysis.TextEdit,
 	}, importEdit
 }
 
-func newHTTPStatusCodeTextEdit(pass *analysis.Pass, e ast.Expr) (*analysis.TextEdit, *analysis.TextEdit) {
+func newHTTPStatusCodeTextEdit(pass *analysis.Pass, e ast.Expr) (valueEdit *analysis.TextEdit, importEdit *analysis.TextEdit) {
 	bt, ok := typeSafeBasicLit(e, token.INT)
 	if !ok {
 		return nil, nil
