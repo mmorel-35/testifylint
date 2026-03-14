@@ -3,6 +3,7 @@
 package httpmultiple
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -65,7 +66,7 @@ func TestHttpMultipleChecker(t *testing.T) {
 	}()
 
 	// Valid: using httptest directly (the recommended approach).
-	req, _ := http.NewRequest("GET", "/direct", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/direct", nil)
 	rr := httptest.NewRecorder()
 	handler(rr, req)
 	assert.Equal(t, http.StatusOK, rr.Code)

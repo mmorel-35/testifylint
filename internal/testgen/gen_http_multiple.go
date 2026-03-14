@@ -42,6 +42,7 @@ const httpMultipleTestTmpl = header + `
 package {{ .CheckerName.AsPkgName }}
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -104,7 +105,7 @@ func {{ .CheckerName.AsTestName }}(t *testing.T) {
 	}()
 
 	// Valid: using httptest directly (the recommended approach).
-	req, _ := http.NewRequest("GET", "/direct", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/direct", nil)
 	rr := httptest.NewRecorder()
 	handler(rr, req)
 	assert.Equal(t, http.StatusOK, rr.Code)
@@ -125,6 +126,7 @@ const httpMultipleGoldenTmpl = header + `
 package {{ .CheckerName.AsPkgName }}
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -139,7 +141,7 @@ func handler(w http.ResponseWriter, r *http.Request) {}
 func {{ .CheckerName.AsTestName }}(t *testing.T) {
 	// Invalid: multiple HTTP assertions with the same handler and args.
 	{
-		req := httptest.NewRequest("GET", "/index", nil)
+		req := httptest.NewRequestWithContext(context.Background(), "GET", "/index", nil)
 		rr := httptest.NewRecorder()
 		handler(rr, req)
 		assert.Equal(t, http.StatusOK, rr.Code)
@@ -147,7 +149,7 @@ func {{ .CheckerName.AsTestName }}(t *testing.T) {
 	}
 
 	{
-		req := httptest.NewRequest("GET", "/error", nil)
+		req := httptest.NewRequestWithContext(context.Background(), "GET", "/error", nil)
 		rr := httptest.NewRecorder()
 		handler(rr, req)
 		assert.GreaterOrEqual(t, rr.Code, 400)
@@ -155,7 +157,7 @@ func {{ .CheckerName.AsTestName }}(t *testing.T) {
 	}
 
 	{
-		req := httptest.NewRequest("GET", "/redirect", nil)
+		req := httptest.NewRequestWithContext(context.Background(), "GET", "/redirect", nil)
 		rr := httptest.NewRecorder()
 		handler(rr, req)
 		require.GreaterOrEqual(t, rr.Code, 300)
@@ -165,7 +167,7 @@ func {{ .CheckerName.AsTestName }}(t *testing.T) {
 
 	// Invalid: formatted (*f) variants are also detected.
 	{
-		req := httptest.NewRequest("GET", "/fmt", nil)
+		req := httptest.NewRequestWithContext(context.Background(), "GET", "/fmt", nil)
 		rr := httptest.NewRecorder()
 		handler(rr, req)
 		assert.Equalf(t, http.StatusOK, rr.Code, "msg")
@@ -174,7 +176,7 @@ func {{ .CheckerName.AsTestName }}(t *testing.T) {
 
 	// Invalid: non-nil url.Values query parameters.
 	{
-		req := httptest.NewRequest("GET", "/search", nil)
+		req := httptest.NewRequestWithContext(context.Background(), "GET", "/search", nil)
 		req.URL.RawQuery = url.Values{"q": {"go"}}.Encode()
 		rr := httptest.NewRecorder()
 		handler(rr, req)
@@ -214,7 +216,7 @@ func {{ .CheckerName.AsTestName }}(t *testing.T) {
 	}()
 
 	// Valid: using httptest directly (the recommended approach).
-	req, _ := http.NewRequest("GET", "/direct", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/direct", nil)
 	rr := httptest.NewRecorder()
 	handler(rr, req)
 	assert.Equal(t, http.StatusOK, rr.Code)
@@ -224,7 +226,7 @@ func {{ .CheckerName.AsTestName }}(t *testing.T) {
 // extracts the actual identifier from the call rather than hard-coding "t".
 func {{ .CheckerName.AsTestName }}TT(tt *testing.T) {
 	{
-		req := httptest.NewRequest("GET", "/tt-path", nil)
+		req := httptest.NewRequestWithContext(context.Background(), "GET", "/tt-path", nil)
 		rr := httptest.NewRecorder()
 		handler(rr, req)
 		assert.Equal(tt, http.StatusOK, rr.Code)

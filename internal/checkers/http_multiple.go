@@ -184,9 +184,16 @@ func (checker HTTPMultiple) generateFix(
 	// Resolve the local qualifier for net/http/httptest and get an optional import
 	// TextEdit if the package is not yet imported. Uses addImportFix so that the fix
 	// is offered regardless of whether httptest is already imported.
-	httptestQualifier, importEdit, ok := addImportFix(pass.Files, firstStmt.Pos(), "net/http/httptest")
+	httptestQualifier, httptestImportEdit, ok := addImportFix(pass.Files, firstStmt.Pos(), "net/http/httptest")
 	if !ok {
 		// Blank import or all candidate names exhausted — skip fix.
+		return nil
+	}
+
+	// Resolve the local qualifier for context (needed for context.Background() in
+	// NewRequestWithContext). Also add the import if it is not yet present.
+	contextQualifier, contextImportEdit, ok := addImportFix(pass.Files, firstStmt.Pos(), "context")
+	if !ok {
 		return nil
 	}
 
@@ -214,8 +221,8 @@ func (checker HTTPMultiple) generateFix(
 	var sb strings.Builder
 	sb.WriteString("{\n")
 	sb.WriteString(innerIndent)
-	// httptest.NewRequest panics on invalid method/URL and is idiomatic for test code.
-	sb.WriteString(fmt.Sprintf("req := %s.NewRequest(%s, %s, nil)\n", httptestQualifier, key.method, key.url))
+	// httptest.NewRequestWithContext panics on invalid method/URL and is idiomatic for test code.
+	sb.WriteString(fmt.Sprintf("req := %s.NewRequestWithContext(%s.Background(), %s, %s, nil)\n", httptestQualifier, contextQualifier, key.method, key.url))
 	if key.values != "nil" {
 		// testify's HTTP helpers set req.URL.RawQuery = values.Encode() — mirror that here.
 		sb.WriteString(innerIndent)
@@ -251,8 +258,11 @@ func (checker HTTPMultiple) generateFix(
 		End:     endPos,
 		NewText: []byte(sb.String()),
 	}}
-	if importEdit != nil {
-		textEdits = append(textEdits, *importEdit)
+	if httptestImportEdit != nil {
+		textEdits = append(textEdits, *httptestImportEdit)
+	}
+	if contextImportEdit != nil {
+		textEdits = append(textEdits, *contextImportEdit)
 	}
 
 	return &analysis.SuggestedFix{
