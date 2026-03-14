@@ -179,18 +179,14 @@ func (checker HTTPMultiple) generateFix(
 		}
 	}
 
-	// Only offer the fix when net/http/httptest is already imported in the file —
-	// adding imports in a suggested fix requires a separate complex TextEdit that
-	// is error-prone and is better left to goimports.
 	firstStmt := body.List[calls[0].stmtIdx]
-	var astFile *ast.File
-	for _, f := range pass.Files {
-		if f.Pos() <= firstStmt.Pos() && firstStmt.Pos() <= f.End() {
-			astFile = f
-			break
-		}
-	}
-	if astFile == nil || !analysisutil.Imports(astFile, "net/http/httptest") {
+
+	// Resolve the local qualifier for net/http/httptest and get an optional import
+	// TextEdit if the package is not yet imported. Uses addImportFix so that the fix
+	// is offered regardless of whether httptest is already imported.
+	httptestQualifier, importEdit, ok := addImportFix(pass.Files, firstStmt.Pos(), "net/http/httptest")
+	if !ok {
+		// Blank import or all candidate names exhausted — skip fix.
 		return nil
 	}
 
@@ -219,14 +215,14 @@ func (checker HTTPMultiple) generateFix(
 	sb.WriteString("{\n")
 	sb.WriteString(innerIndent)
 	// httptest.NewRequest panics on invalid method/URL and is idiomatic for test code.
-	sb.WriteString(fmt.Sprintf("req := httptest.NewRequest(%s, %s, nil)\n", key.method, key.url))
+	sb.WriteString(fmt.Sprintf("req := %s.NewRequest(%s, %s, nil)\n", httptestQualifier, key.method, key.url))
 	if key.values != "nil" {
 		// testify's HTTP helpers set req.URL.RawQuery = values.Encode() — mirror that here.
 		sb.WriteString(innerIndent)
 		sb.WriteString(fmt.Sprintf("req.URL.RawQuery = %s.Encode()\n", key.values))
 	}
 	sb.WriteString(innerIndent)
-	sb.WriteString("rr := httptest.NewRecorder()\n")
+	sb.WriteString(fmt.Sprintf("rr := %s.NewRecorder()\n", httptestQualifier))
 	sb.WriteString(innerIndent)
 	sb.WriteString(fmt.Sprintf("%s(rr, req)\n", key.handler))
 	for _, line := range assertLines {
@@ -250,13 +246,18 @@ func (checker HTTPMultiple) generateFix(
 		endPos = token.Pos(f.Base() + f.Size())
 	}
 
+	textEdits := []analysis.TextEdit{{
+		Pos:     firstStmt.Pos(),
+		End:     endPos,
+		NewText: []byte(sb.String()),
+	}}
+	if importEdit != nil {
+		textEdits = append(textEdits, *importEdit)
+	}
+
 	return &analysis.SuggestedFix{
-		Message: "Use httptest.NewRecorder()",
-		TextEdits: []analysis.TextEdit{{
-			Pos:     firstStmt.Pos(),
-			End:     endPos,
-			NewText: []byte(sb.String()),
-		}},
+		Message:   "Use httptest.NewRecorder()",
+		TextEdits: textEdits,
 	}
 }
 
