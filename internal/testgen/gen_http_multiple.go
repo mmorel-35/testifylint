@@ -139,7 +139,7 @@ func handler(w http.ResponseWriter, r *http.Request) {}
 func {{ .CheckerName.AsTestName }}(t *testing.T) {
 	// Invalid: multiple HTTP assertions with the same handler and args.
 	{
-		req := httptest.NewRequestWithContext(t.Context(), "GET", "/index", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/index", nil)
 		rr := httptest.NewRecorder()
 		handler(rr, req)
 		assert.Equal(t, http.StatusOK, rr.Code)
@@ -147,25 +147,25 @@ func {{ .CheckerName.AsTestName }}(t *testing.T) {
 	}
 
 	{
-		req := httptest.NewRequestWithContext(t.Context(), "GET", "/error", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/error", nil)
 		rr := httptest.NewRecorder()
 		handler(rr, req)
-		assert.GreaterOrEqual(t, rr.Code, 400)
+		assert.GreaterOrEqual(t, rr.Code, http.StatusBadRequest)
 		assert.Contains(t, rr.Body.String(), "oops")
 	}
 
 	{
-		req := httptest.NewRequestWithContext(t.Context(), "GET", "/redirect", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/redirect", nil)
 		rr := httptest.NewRecorder()
 		handler(rr, req)
-		require.GreaterOrEqual(t, rr.Code, 300)
-		require.Less(t, rr.Code, 400)
+		require.GreaterOrEqual(t, rr.Code, http.StatusMultipleChoices)
+		require.Less(t, rr.Code, http.StatusBadRequest)
 		require.Equal(t, http.StatusFound, rr.Code)
 	}
 
 	// Invalid: formatted (*f) variants are also detected.
 	{
-		req := httptest.NewRequestWithContext(t.Context(), "GET", "/fmt", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/fmt", nil)
 		rr := httptest.NewRecorder()
 		handler(rr, req)
 		assert.Equalf(t, http.StatusOK, rr.Code, "msg")
@@ -174,7 +174,7 @@ func {{ .CheckerName.AsTestName }}(t *testing.T) {
 
 	// Invalid: non-nil url.Values query parameters.
 	{
-		req := httptest.NewRequestWithContext(t.Context(), "GET", "/search", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/search", nil)
 		req.URL.RawQuery = url.Values{"q": {"go"}}.Encode()
 		rr := httptest.NewRecorder()
 		handler(rr, req)
@@ -224,7 +224,7 @@ func {{ .CheckerName.AsTestName }}(t *testing.T) {
 // extracts the actual identifier from the call rather than hard-coding "t".
 func {{ .CheckerName.AsTestName }}TT(tt *testing.T) {
 	{
-		req := httptest.NewRequestWithContext(tt.Context(), "GET", "/tt-path", nil)
+		req := httptest.NewRequestWithContext(tt.Context(), http.MethodGet, "/tt-path", nil)
 		rr := httptest.NewRecorder()
 		handler(rr, req)
 		assert.Equal(tt, http.StatusOK, rr.Code)
