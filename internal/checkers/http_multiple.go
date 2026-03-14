@@ -202,11 +202,7 @@ func (checker HTTPMultiple) generateFix(
 		if bl, isBL := calls[0].call.Args[1].(*ast.BasicLit); isBL && bl.Kind == token.STRING {
 			if unquoted, err := strconv.Unquote(bl.Value); err == nil {
 				if constName, found := httpMethod[strings.ToUpper(unquoted)]; found {
-					if httpQual == "" {
-						methodArg = constName // dot-import: no qualifier needed
-					} else {
-						methodArg = httpQual + "." + constName
-					}
+					methodArg = httpNetQualifiedConst(httpQual, constName)
 				}
 			}
 		}
@@ -321,16 +317,14 @@ func httpAssertionReplacement(pass *analysis.Pass, call *CallMeta, httpQual stri
 		return ", " + strings.Join(parts, ", ")
 	}
 
-	// statusConst returns "qualifier.constName" (or just "constName" for dot-import) when
-	// httpAvail is true, otherwise falls back to the raw integer string.
-	statusConst := func(constName string, rawVal int) string {
+	// statusConst returns the qualified net/http constant reference (e.g. "http.StatusBadRequest")
+	// when httpAvail is true, or the bare constName for dot-imports.
+	// Falls back to the constName without qualifier when net/http is unavailable.
+	statusConst := func(constName string) string {
 		if !httpAvail {
-			return strconv.Itoa(rawVal)
+			return constName
 		}
-		if httpQual == "" {
-			return constName // dot-import: no qualifier needed
-		}
-		return httpQual + "." + constName
+		return httpNetQualifiedConst(httpQual, constName)
 	}
 
 	switch call.Fn.NameFTrimmed {
@@ -346,7 +340,7 @@ func httpAssertionReplacement(pass *analysis.Pass, call *CallMeta, httpQual stri
 				if v.Kind() == constant.Int {
 					if intVal, exact := constant.Int64Val(v); exact && int64(int(intVal)) == intVal {
 						if constName, found := httpStatusCode[int(intVal)]; found {
-							code = statusConst(constName, int(intVal))
+							code = statusConst(constName)
 						}
 					}
 				}
@@ -373,20 +367,20 @@ func httpAssertionReplacement(pass *analysis.Pass, call *CallMeta, httpQual stri
 
 	case "HTTPError":
 		msg := argsStr(extra)
-		return []string{fmt.Sprintf("%s.GreaterOrEqual%s(%s, rr.Code, %s%s)", pkg, fSuffix, t, statusConst("StatusBadRequest", 400), msg)}
+		return []string{fmt.Sprintf("%s.GreaterOrEqual%s(%s, rr.Code, %s%s)", pkg, fSuffix, t, statusConst("StatusBadRequest"), msg)}
 
 	case "HTTPSuccess":
 		msg := argsStr(extra)
 		return []string{
-			fmt.Sprintf("%s.GreaterOrEqual%s(%s, rr.Code, %s%s)", pkg, fSuffix, t, statusConst("StatusOK", 200), msg),
-			fmt.Sprintf("%s.Less%s(%s, rr.Code, %s%s)", pkg, fSuffix, t, statusConst("StatusMultipleChoices", 300), msg),
+			fmt.Sprintf("%s.GreaterOrEqual%s(%s, rr.Code, %s%s)", pkg, fSuffix, t, statusConst("StatusOK"), msg),
+			fmt.Sprintf("%s.Less%s(%s, rr.Code, %s%s)", pkg, fSuffix, t, statusConst("StatusMultipleChoices"), msg),
 		}
 
 	case "HTTPRedirect":
 		msg := argsStr(extra)
 		return []string{
-			fmt.Sprintf("%s.GreaterOrEqual%s(%s, rr.Code, %s%s)", pkg, fSuffix, t, statusConst("StatusMultipleChoices", 300), msg),
-			fmt.Sprintf("%s.Less%s(%s, rr.Code, %s%s)", pkg, fSuffix, t, statusConst("StatusBadRequest", 400), msg),
+			fmt.Sprintf("%s.GreaterOrEqual%s(%s, rr.Code, %s%s)", pkg, fSuffix, t, statusConst("StatusMultipleChoices"), msg),
+			fmt.Sprintf("%s.Less%s(%s, rr.Code, %s%s)", pkg, fSuffix, t, statusConst("StatusBadRequest"), msg),
 		}
 	}
 

@@ -99,6 +99,16 @@ func httpNetPkgName(pass *analysis.Pass, pos token.Pos) (string, *analysis.TextE
 	return addImportFix(pass.Files, pos, "net/http")
 }
 
+// httpNetQualifiedConst returns the qualified net/http constant reference for constName
+// using httpQual as the local package name.
+// Returns "constName" when httpQual is "" (dot-import), otherwise "httpQual.constName".
+func httpNetQualifiedConst(httpQual, constName string) string {
+	if httpQual == "" {
+		return constName
+	}
+	return httpQual + "." + constName
+}
+
 func mimicHTTPHandler(pass *analysis.Pass, fType *ast.FuncType) bool {
 	httpHandlerFuncObj := analysisutil.ObjectOf(pass.Pkg, "net/http", "HandlerFunc")
 	if httpHandlerFuncObj == nil {
