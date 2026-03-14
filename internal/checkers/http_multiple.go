@@ -199,12 +199,8 @@ func (checker HTTPMultiple) generateFix(
 	// Remap the method argument if it is a plain string literal (e.g. "GET" → http.MethodGet).
 	methodArg := key.method
 	if httpAvail {
-		if bl, isBL := calls[0].call.Args[1].(*ast.BasicLit); isBL && bl.Kind == token.STRING {
-			if unquoted, err := strconv.Unquote(bl.Value); err == nil {
-				if constName, found := httpMethod[strings.ToUpper(unquoted)]; found {
-					methodArg = httpNetQualifiedConst(httpQual, constName)
-				}
-			}
+		if remapped, ok := remapMethodArg(calls[0].call.Args[1], httpQual); ok {
+			methodArg = remapped
 		}
 	}
 
@@ -335,15 +331,8 @@ func httpAssertionReplacement(pass *analysis.Pass, call *CallMeta, httpQual stri
 		code := analysisutil.NodeString(pass.Fset, extra[0])
 		// Remap a raw integer literal (e.g. 200) to the corresponding http.StatusXxx constant.
 		if httpAvail {
-			if bl, ok := extra[0].(*ast.BasicLit); ok && bl.Kind == token.INT {
-				v := constant.MakeFromLiteral(bl.Value, token.INT, 0)
-				if v.Kind() == constant.Int {
-					if intVal, exact := constant.Int64Val(v); exact && int64(int(intVal)) == intVal {
-						if constName, found := httpStatusCode[int(intVal)]; found {
-							code = statusConst(constName)
-						}
-					}
-				}
+			if constName, ok := remapStatusCodeArg(extra[0]); ok {
+				code = statusConst(constName)
 			}
 		}
 		msg := argsStr(extra[1:])
@@ -394,4 +383,44 @@ func isHTTPAssertion(call *CallMeta) bool {
 		return true
 	}
 	return false
+}
+
+// remapMethodArg returns the qualified net/http constant for a plain HTTP method string literal
+// (e.g. "GET" → http.MethodGet). Returns the qualified constant and true when a remap is found.
+func remapMethodArg(arg ast.Expr, httpQual string) (string, bool) {
+	bl, ok := arg.(*ast.BasicLit)
+	if !ok || bl.Kind != token.STRING {
+		return "", false
+	}
+	unquoted, err := strconv.Unquote(bl.Value)
+	if err != nil {
+		return "", false
+	}
+	constName, found := httpMethod[strings.ToUpper(unquoted)]
+	if !found {
+		return "", false
+	}
+	return httpNetQualifiedConst(httpQual, constName), true
+}
+
+// remapStatusCodeArg returns the net/http constant name for a plain integer status code literal
+// (e.g. 200 → "StatusOK"). Returns the constant name and true when a remap is found.
+func remapStatusCodeArg(arg ast.Expr) (string, bool) {
+	bl, ok := arg.(*ast.BasicLit)
+	if !ok || bl.Kind != token.INT {
+		return "", false
+	}
+	v := constant.MakeFromLiteral(bl.Value, token.INT, 0)
+	if v.Kind() != constant.Int {
+		return "", false
+	}
+	intVal, exact := constant.Int64Val(v)
+	if !exact || int64(int(intVal)) != intVal {
+		return "", false
+	}
+	constName, found := httpStatusCode[int(intVal)]
+	if !found {
+		return "", false
+	}
+	return constName, true
 }
