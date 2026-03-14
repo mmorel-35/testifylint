@@ -3,8 +3,10 @@ package checkers
 import (
 	"fmt"
 	"go/ast"
+	"go/constant"
 	"go/token"
 	"sort"
+	"strconv"
 	"strings"
 
 	"golang.org/x/tools/go/analysis"
@@ -190,6 +192,22 @@ func (checker HTTPMultiple) generateFix(
 		return nil
 	}
 
+	// Resolve the local qualifier for net/http to remap raw string/int literals
+	// (e.g. "GET" → http.MethodGet, 200 → http.StatusOK) in the generated fix.
+	httpQual, httpImportEdit, httpAvail := httpNetPkgName(pass, firstStmt.Pos())
+
+	// Remap the method argument if it is a plain string literal (e.g. "GET" → http.MethodGet).
+	methodArg := key.method
+	if httpAvail {
+		if bl, isBL := calls[0].call.Args[1].(*ast.BasicLit); isBL && bl.Kind == token.STRING {
+			if unquoted, err := strconv.Unquote(bl.Value); err == nil {
+				if constName, found := httpMethod[strings.ToUpper(unquoted)]; found {
+					methodArg = httpNetQualifiedConst(httpQual, constName)
+				}
+			}
+		}
+	}
+
 	// Extract the TestingT variable name from the first call to use t.Context()
 	// in NewRequestWithContext. This avoids importing "context" entirely.
 	tVar := analysisutil.NodeString(pass.Fset, calls[0].call.ArgsRaw[0])
@@ -206,7 +224,7 @@ func (checker HTTPMultiple) generateFix(
 	// inside httpAssertionReplacement to use each call's original expressions.
 	var assertLines []string
 	for _, cis := range calls {
-		lines := httpAssertionReplacement(pass, cis.call)
+		lines := httpAssertionReplacement(pass, cis.call, httpQual, httpAvail)
 		if lines == nil {
 			return nil // Cannot auto-fix this particular assertion type.
 		}
@@ -222,7 +240,7 @@ func (checker HTTPMultiple) generateFix(
 	// without requiring an explicit "context" import.
 	sb.WriteString(
 		fmt.Sprintf("req := %s.NewRequestWithContext(%s.Context(), %s, %s, nil)\n",
-			httptestQualifier, tVar, key.method, key.url),
+			httptestQualifier, tVar, methodArg, key.url),
 	)
 	if key.values != "nil" {
 		// testify's HTTP helpers set req.URL.RawQuery = values.Encode() — mirror that here.
@@ -262,6 +280,9 @@ func (checker HTTPMultiple) generateFix(
 	if httptestImportEdit != nil {
 		textEdits = append(textEdits, *httptestImportEdit)
 	}
+	if httpImportEdit != nil {
+		textEdits = append(textEdits, *httpImportEdit)
+	}
 
 	return &analysis.SuggestedFix{
 		Message:   "Use httptest.NewRecorder()",
@@ -272,8 +293,10 @@ func (checker HTTPMultiple) generateFix(
 // httpAssertionReplacement maps one HTTP testify assertion to its httptest equivalent line(s).
 // call.Args layout (after t is stripped): [handler, method, url, values, <assertion-specific args...>]
 // The TestingT variable name and package (assert/require) are extracted from call itself.
+// httpQual is the local qualifier for "net/http" (empty for dot-import), httpAvail indicates
+// whether net/http constants can be used in the generated code.
 // Returns nil when the assertion cannot be automatically fixed.
-func httpAssertionReplacement(pass *analysis.Pass, call *CallMeta) []string {
+func httpAssertionReplacement(pass *analysis.Pass, call *CallMeta, httpQual string, httpAvail bool) []string {
 	// Use the actual TestingT expression from the original call instead of hard-coding "t".
 	t := analysisutil.NodeString(pass.Fset, call.ArgsRaw[0])
 	pkg := call.SelectorXStr
@@ -294,12 +317,35 @@ func httpAssertionReplacement(pass *analysis.Pass, call *CallMeta) []string {
 		return ", " + strings.Join(parts, ", ")
 	}
 
+	// statusConst returns the qualified net/http constant reference (e.g. "http.StatusBadRequest")
+	// when httpAvail is true, or the bare constName for dot-imports.
+	// Falls back to the constName without qualifier when net/http is unavailable.
+	statusConst := func(constName string) string {
+		if !httpAvail {
+			return constName
+		}
+		return httpNetQualifiedConst(httpQual, constName)
+	}
+
 	switch call.Fn.NameFTrimmed {
 	case "HTTPStatusCode":
 		if len(extra) < 1 {
 			return nil
 		}
 		code := analysisutil.NodeString(pass.Fset, extra[0])
+		// Remap a raw integer literal (e.g. 200) to the corresponding http.StatusXxx constant.
+		if httpAvail {
+			if bl, ok := extra[0].(*ast.BasicLit); ok && bl.Kind == token.INT {
+				v := constant.MakeFromLiteral(bl.Value, token.INT, 0)
+				if v.Kind() == constant.Int {
+					if intVal, exact := constant.Int64Val(v); exact && int64(int(intVal)) == intVal {
+						if constName, found := httpStatusCode[int(intVal)]; found {
+							code = statusConst(constName)
+						}
+					}
+				}
+			}
+		}
 		msg := argsStr(extra[1:])
 		return []string{fmt.Sprintf("%s.Equal%s(%s, %s, rr.Code%s)", pkg, fSuffix, t, code, msg)}
 
@@ -321,20 +367,20 @@ func httpAssertionReplacement(pass *analysis.Pass, call *CallMeta) []string {
 
 	case "HTTPError":
 		msg := argsStr(extra)
-		return []string{fmt.Sprintf("%s.GreaterOrEqual%s(%s, rr.Code, 400%s)", pkg, fSuffix, t, msg)}
+		return []string{fmt.Sprintf("%s.GreaterOrEqual%s(%s, rr.Code, %s%s)", pkg, fSuffix, t, statusConst("StatusBadRequest"), msg)}
 
 	case "HTTPSuccess":
 		msg := argsStr(extra)
 		return []string{
-			fmt.Sprintf("%s.GreaterOrEqual%s(%s, rr.Code, 200%s)", pkg, fSuffix, t, msg),
-			fmt.Sprintf("%s.Less%s(%s, rr.Code, 300%s)", pkg, fSuffix, t, msg),
+			fmt.Sprintf("%s.GreaterOrEqual%s(%s, rr.Code, %s%s)", pkg, fSuffix, t, statusConst("StatusOK"), msg),
+			fmt.Sprintf("%s.Less%s(%s, rr.Code, %s%s)", pkg, fSuffix, t, statusConst("StatusMultipleChoices"), msg),
 		}
 
 	case "HTTPRedirect":
 		msg := argsStr(extra)
 		return []string{
-			fmt.Sprintf("%s.GreaterOrEqual%s(%s, rr.Code, 300%s)", pkg, fSuffix, t, msg),
-			fmt.Sprintf("%s.Less%s(%s, rr.Code, 400%s)", pkg, fSuffix, t, msg),
+			fmt.Sprintf("%s.GreaterOrEqual%s(%s, rr.Code, %s%s)", pkg, fSuffix, t, statusConst("StatusMultipleChoices"), msg),
+			fmt.Sprintf("%s.Less%s(%s, rr.Code, %s%s)", pkg, fSuffix, t, statusConst("StatusBadRequest"), msg),
 		}
 	}
 

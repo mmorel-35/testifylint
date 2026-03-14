@@ -17,7 +17,7 @@ func handler(w http.ResponseWriter, r *http.Request) {}
 func TestHttpMultipleCheckerAddImport(t *testing.T) {
 	// Invalid: httptest is not imported — the fix must add it.
 	{
-		req := httptest.NewRequestWithContext(t.Context(), "GET", "/add-import", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/add-import", nil)
 		rr := httptest.NewRecorder()
 		handler(rr, req)
 		assert.Equal(t, http.StatusOK, rr.Code)
