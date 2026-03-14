@@ -823,7 +823,7 @@ assert.HTTPStatusCode(t, handler, "GET", "/path", nil, http.StatusOK)
 assert.HTTPBodyContains(t, handler, "GET", "/path", nil, "hello")
 
 ✅
-r := httptest.NewRequest("GET", "/path", nil)
+r := httptest.NewRequestWithContext(t.Context(), "GET", "/path", nil)
 w := httptest.NewRecorder()
 handler(w, r)
 assert.Equal(t, http.StatusOK, w.Code)

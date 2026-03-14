@@ -190,12 +190,9 @@ func (checker HTTPMultiple) generateFix(
 		return nil
 	}
 
-	// Resolve the local qualifier for context (needed for context.Background() in
-	// NewRequestWithContext). Also add the import if it is not yet present.
-	contextQualifier, contextImportEdit, ok := addImportFix(pass.Files, firstStmt.Pos(), "context")
-	if !ok {
-		return nil
-	}
+	// Extract the TestingT variable name from the first call to use t.Context()
+	// in NewRequestWithContext. This avoids importing "context" entirely.
+	tVar := analysisutil.NodeString(pass.Fset, calls[0].call.ArgsRaw[0])
 
 	// Derive indentation from the column of the first statement.
 	// Column is 1-indexed and counts bytes, so col-1 = number of leading tab/space bytes.
@@ -221,8 +218,9 @@ func (checker HTTPMultiple) generateFix(
 	var sb strings.Builder
 	sb.WriteString("{\n")
 	sb.WriteString(innerIndent)
-	// httptest.NewRequestWithContext panics on invalid method/URL and is idiomatic for test code.
-	sb.WriteString(fmt.Sprintf("req := %s.NewRequestWithContext(%s.Background(), %s, %s, nil)\n", httptestQualifier, contextQualifier, key.method, key.url))
+	// Use t.Context() so the request context is automatically cancelled when the test ends,
+	// without requiring an explicit "context" import.
+	sb.WriteString(fmt.Sprintf("req := %s.NewRequestWithContext(%s.Context(), %s, %s, nil)\n", httptestQualifier, tVar, key.method, key.url))
 	if key.values != "nil" {
 		// testify's HTTP helpers set req.URL.RawQuery = values.Encode() — mirror that here.
 		sb.WriteString(innerIndent)
@@ -260,9 +258,6 @@ func (checker HTTPMultiple) generateFix(
 	}}
 	if httptestImportEdit != nil {
 		textEdits = append(textEdits, *httptestImportEdit)
-	}
-	if contextImportEdit != nil {
-		textEdits = append(textEdits, *contextImportEdit)
 	}
 
 	return &analysis.SuggestedFix{

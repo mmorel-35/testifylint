@@ -1,14 +1,13 @@
 // Test case for the http-multiple checker's import-addition behaviour.
-// This file intentionally does NOT import net/http/httptest or context;
-// the suggested fix must add both imports automatically via addImportFix.
+// This file intentionally does NOT import net/http/httptest;
+// the suggested fix must add the import automatically via addImportFix.
 
 package httpmultipleaddimport
 
 import (
 	"net/http"
-	"testing"
 	"net/http/httptest"
-	"context"
+	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -16,9 +15,9 @@ import (
 func handler(w http.ResponseWriter, r *http.Request) {}
 
 func TestHttpMultipleCheckerAddImport(t *testing.T) {
-	// Invalid: httptest and context are not imported — the fix must add them.
+	// Invalid: httptest is not imported — the fix must add it.
 	{
-		req := httptest.NewRequestWithContext(context.Background(), "GET", "/add-import", nil)
+		req := httptest.NewRequestWithContext(t.Context(), "GET", "/add-import", nil)
 		rr := httptest.NewRecorder()
 		handler(rr, req)
 		assert.Equal(t, http.StatusOK, rr.Code)
