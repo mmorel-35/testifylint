@@ -101,6 +101,7 @@ https://golangci-lint.run/docs/linters/configuration/#testifylint
 | [float-compare](#float-compare)                     | ✅                  | ❌       |
 | [formatter](#formatter)                             | ✅                  | 🤏      |
 | [go-require](#go-require)                           | ✅                  | ❌       |
+| [graceful-teardown](#graceful-teardown)             | ❌                  | ❌       |
 | [len](#len)                                         | ✅                  | ✅       |
 | [negative-positive](#negative-positive)             | ✅                  | ✅       |
 | [nil-compare](#nil-compare)                         | ✅                  | ✅       |
@@ -811,6 +812,38 @@ that services the HTTP connection. Terminating these goroutines can lead to unde
 tests. You can turn off the check using the `--go-require.ignore-http-handlers` flag.
 
 P.S. Look at [testify's issue](https://github.com/stretchr/testify/issues/772), related to assertions in the goroutines.
+
+---
+
+### graceful-teardown
+
+```go
+❌
+func (s *ServiceIntegrationSuite) TearDownTest() {
+    if p := s.verdictsProducer; p != nil {
+        s.Require().NoError(p.Close())
+    }
+}
+
+t.Cleanup(func() {
+    require.NoError(t, err)
+})
+
+✅
+func (s *ServiceIntegrationSuite) TearDownTest() {
+    if p := s.verdictsProducer; p != nil {
+        s.Assert().NoError(p.Close())
+    }
+}
+
+t.Cleanup(func() {
+    assert.NoError(t, err)
+})
+```
+
+**Autofix**: false. <br>
+**Enabled by default**: false. <br>
+**Reason**: Possible resource leaks, because `require` finishes the current goroutine.
 
 ---
 

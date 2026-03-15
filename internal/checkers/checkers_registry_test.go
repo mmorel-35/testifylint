@@ -60,6 +60,7 @@ func TestAll(t *testing.T) {
 		"suite-method-signature",
 		"suite-subtest-run",
 		"suite-thelper",
+		"graceful-teardown",
 	}
 	if !slices.Equal(expected, checkerList) {
 		t.Fatalf("unexpected list: %#v", checkerList)
@@ -166,6 +167,9 @@ func TestIsEnabledByDefault(t *testing.T) {
 		t.FailNow()
 	}
 	if checkers.IsEnabledByDefault(checkers.NewSuiteTHelper().Name()) {
+		t.FailNow()
+	}
+	if checkers.IsEnabledByDefault(checkers.NewGracefulTeardown().Name()) {
 		t.FailNow()
 	}
 	if checkers.IsEnabledByDefault("unknown") {
