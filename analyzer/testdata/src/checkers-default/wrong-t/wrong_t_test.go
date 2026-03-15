@@ -106,4 +106,12 @@ func TestWrongTChecker_Valid(t *testing.T) {
 		inner := assert.New(t)
 		inner.Equal(0, result)
 	})
+
+	// Valid – outer-scope assertion object rebound to subtest's t before use.
+	t.Run("rebound", func(t *testing.T) {
+		a = assert.New(t)
+		r = require.New(t)
+		a.Equal(0, result)
+		r.NoError(err)
+	})
 }

@@ -110,6 +110,47 @@ func (checker WrongT) Check(pass *analysis.Pass, insp *inspector.Inspector) (dia
 
 		callbackBodyStart := callback.Body.Lbrace
 
+		// Collect the earliest position where each outer-scope assertion object is
+		// rebound inside the callback via a plain `=` assignment to assert.New / require.New.
+		// E.g.:  a = assert.New(t)
+		// Calls on `a` that occur AFTER such a rebinding are suppressed to avoid false positives.
+		innerRebindings := make(map[types.Object]token.Pos)
+		ast.Inspect(callback.Body, func(n ast.Node) bool {
+			if _, isFuncLit := n.(*ast.FuncLit); isFuncLit {
+				return false
+			}
+			as, ok := n.(*ast.AssignStmt)
+			if !ok || as.Tok != token.ASSIGN {
+				return true
+			}
+			for i, rhs := range as.Rhs {
+				callExpr, ok := rhs.(*ast.CallExpr)
+				if !ok {
+					continue
+				}
+				cm := NewCallMeta(pass, callExpr)
+				if cm == nil || !cm.IsPkg || cm.Fn.Name != "New" {
+					continue
+				}
+				if i >= len(as.Lhs) {
+					continue
+				}
+				lhsID, ok := as.Lhs[i].(*ast.Ident)
+				if !ok {
+					continue
+				}
+				obj := pass.TypesInfo.ObjectOf(lhsID)
+				if obj == nil || !assertVars[obj] || obj.Pos() >= callbackBodyStart {
+					continue
+				}
+				// Record the earliest rebinding position for this object.
+				if existing, seen := innerRebindings[obj]; !seen || as.Pos() < existing {
+					innerRebindings[obj] = as.Pos()
+				}
+			}
+			return true
+		})
+
 		// Walk callback body looking for calls on assertion objects from outer scope.
 		// Don't recurse into nested function literals to avoid double-reporting –
 		// the inner t.Run callbacks are processed separately by this same loop.
@@ -135,6 +176,10 @@ func (checker WrongT) Check(pass *analysis.Pass, insp *inspector.Inspector) (dia
 				return true
 			}
 			if assertVars[obj] && obj.Pos() < callbackBodyStart {
+				// Suppress if the object was rebound before this call.
+				if rebindPos, rebound := innerRebindings[obj]; rebound && rebindPos < callCE.Pos() {
+					return true
+				}
 				d := newDiagnostic(checker.Name(), callCE,
 					fmt.Sprintf(wrongTScopeReport, id.Name))
 				diagnostics = append(diagnostics, *d)
