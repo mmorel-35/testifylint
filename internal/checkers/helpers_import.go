@@ -13,9 +13,9 @@ import (
 
 // maxImportNameRetries is the number of numeric suffixes tried when finding a
 // non-conflicting local name for an import (e.g., http1 … http9).
-// Nine attempts is sufficient because import name collisions are extremely rare
-// in practice, and any file with 10+ different imports sharing the same base
-// name would be pathological.
+// This means up to 10 candidates are tried in total: the base name plus nine
+// suffixed variants. Any file with 10+ imports sharing the same base name
+// would be pathological in practice.
 const maxImportNameRetries = 9
 
 // addImportFix returns the local qualifier name for pkgPath in the file containing pos

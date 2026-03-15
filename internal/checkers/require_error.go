@@ -35,7 +35,7 @@ const requireErrorReport = "for error assertions use require"
 //	...
 //
 // RequireError ignores:
-// - assertions in the `if` condition (unless the body is a simple return/continue);
+// - non-negated assertions in the `if` condition;
 // - assertions in the bool expression;
 // - the entire `if-else[-if]` block, if there is an assertion in any `if` condition;
 // - the last assertion in the block, if there are no methods/functions calls after it;
@@ -43,7 +43,9 @@ const requireErrorReport = "for error assertions use require"
 // - assertions in an explicit testing cleanup function or suite teardown methods;
 // - sequence of NoError assertions.
 //
-// RequireError reports and provides a fix for patterns like
+// RequireError reports and provides a fix for negated assertions in an if
+// condition when the if body consists solely of a return or continue statement
+// and there is no else clause, e.g.:
 //
 //	if !assert.NoError(t, err) {
 //	    return
@@ -163,7 +165,7 @@ func (checker RequireError) Check(pass *analysis.Pass, insp *inspector.Inspector
 			if !c.negatedInIfCond || c.parentIf == nil || c.testifyCall == nil {
 				continue
 			}
-			// Skip if the if is part of an else-if chain: parentIf != rootIf means
+			// Skip if the if is part of an else-if chain: rootIf != parentIf means
 			// the if is directly nested inside another if's Else field, making an
 			// isolated fix incorrect (it would leave a dangling "else").
 			if c.rootIf != c.parentIf {
