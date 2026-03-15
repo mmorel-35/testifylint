@@ -1,6 +1,7 @@
 package checkers
 
 import (
+	"fmt"
 	"go/ast"
 
 	"golang.org/x/tools/go/analysis"
@@ -8,8 +9,6 @@ import (
 
 	"github.com/Antonboom/testifylint/internal/analysisutil"
 )
-
-const elementsMatchReport = "use assert.ElementsMatch"
 
 // ElementsMatch detects situations like
 //
@@ -94,23 +93,27 @@ func (checker ElementsMatch) checkPattern(
 		return nil
 	}
 
-	return newDiagnostic(checker.Name(), testifyCall, elementsMatchReport,
-		analysis.SuggestedFix{
-			Message: "Replace with assert.ElementsMatch",
-			TextEdits: []analysis.TextEdit{
-				// Remove the two slices.Sort calls.
-				{Pos: s0.Pos(), End: s2.Pos(), NewText: []byte{}},
-				// Replace the function name: True -> ElementsMatch.
-				newReplaceFnTextEdit(testifyCall.Fn, "ElementsMatch"),
-				// Replace the args: slices.Equal(x, y) -> x, y (preserving slices.Equal order).
-				{
-					Pos:     testifyCall.Args[0].Pos(),
-					End:     testifyCall.Args[len(testifyCall.Args)-1].End(),
-					NewText: formatAsCallArgs(pass, eqX, eqY),
-				},
-			},
-		},
-	)
+	proposedFn := "ElementsMatch"
+	if testifyCall.Fn.IsFmt {
+		proposedFn += "f"
+	}
+	msg := fmt.Sprintf("use %s.%s", testifyCall.SelectorXStr, proposedFn)
+
+	// Replace only the first arg (slices.Equal(x, y) → x, y), preserving any trailing msgAndArgs.
+	argReplaceEdit := analysis.TextEdit{
+		Pos:     testifyCall.Args[0].Pos(),
+		End:     testifyCall.Args[0].End(),
+		NewText: formatAsCallArgs(pass, eqX, eqY),
+	}
+	fix := newSuggestedFuncReplacement(testifyCall, "ElementsMatch", argReplaceEdit)
+	// Prepend the sort-removal edit (lower position than the function-name edit).
+	// NOTE: This range covers content between s1.End() and s2.Pos(); any comments
+	// placed there would also be removed.
+	fix.TextEdits = append([]analysis.TextEdit{
+		{Pos: s0.Pos(), End: s2.Pos(), NewText: []byte{}},
+	}, fix.TextEdits...)
+
+	return newDiagnostic(checker.Name(), testifyCall, msg, fix)
 }
 
 // extractSlicesSortCallArg returns the first argument of a slices.Sort call,

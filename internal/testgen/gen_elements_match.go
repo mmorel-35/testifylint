@@ -14,14 +14,17 @@ func (ElementsMatchTestsGenerator) Checker() checkers.Checker {
 
 func (g ElementsMatchTestsGenerator) TemplateData() any {
 	checker := g.Checker().Name()
-	report := QuoteReport(checker + ": " + "use assert.ElementsMatch")
 
 	return struct {
-		CheckerName CheckerName
-		Report      string
+		CheckerName   CheckerName
+		AssertReport  string
+		RequireReport string
+		AssertFReport string
 	}{
-		CheckerName: CheckerName(checker),
-		Report:      report,
+		CheckerName:   CheckerName(checker),
+		AssertReport:  QuoteReport(checker + ": use assert.ElementsMatch"),
+		RequireReport: QuoteReport(checker + ": use require.ElementsMatch"),
+		AssertFReport: QuoteReport(checker + ": use assert.ElementsMatchf"),
 	}
 }
 
@@ -54,15 +57,23 @@ func {{ .CheckerName.AsTestName }}(t *testing.T) {
 	{
 		slices.Sort(a)
 		slices.Sort(b)
-		assert.True(t, slices.Equal(a, b)) // want {{ $.Report }}
+		assert.True(t, slices.Equal(a, b)) // want {{ $.AssertReport }}
 
 		slices.Sort(b)
 		slices.Sort(a)
-		assert.True(t, slices.Equal(a, b)) // want {{ $.Report }}
+		assert.True(t, slices.Equal(a, b)) // want {{ $.AssertReport }}
 
 		slices.Sort(a)
 		slices.Sort(b)
-		require.True(t, slices.Equal(a, b)) // want {{ $.Report }}
+		require.True(t, slices.Equal(a, b)) // want {{ $.RequireReport }}
+
+		slices.Sort(a)
+		slices.Sort(b)
+		assert.True(t, slices.Equal(a, b), "elements should match") // want {{ $.AssertReport }}
+
+		slices.Sort(a)
+		slices.Sort(b)
+		assert.Truef(t, slices.Equal(a, b), "elements should match %d and %d", len(a), len(b)) // want {{ $.AssertFReport }}
 	}
 
 	// Valid.
@@ -108,11 +119,15 @@ func {{ .CheckerName.AsTestName }}(t *testing.T) {
 
 	// Invalid.
 	{
-		assert.ElementsMatch(t, a, b) // want {{ $.Report }}
+		assert.ElementsMatch(t, a, b) // want {{ $.AssertReport }}
 
-		assert.ElementsMatch(t, a, b) // want {{ $.Report }}
+		assert.ElementsMatch(t, a, b) // want {{ $.AssertReport }}
 
-		require.ElementsMatch(t, a, b) // want {{ $.Report }}
+		require.ElementsMatch(t, a, b) // want {{ $.RequireReport }}
+
+		assert.ElementsMatch(t, a, b, "elements should match") // want {{ $.AssertReport }}
+
+		assert.ElementsMatchf(t, a, b, "elements should match %d and %d", len(a), len(b)) // want {{ $.AssertFReport }}
 	}
 
 	// Valid.
