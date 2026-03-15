@@ -75,9 +75,9 @@ func TestNegatedIfReturnLast(t *testing.T) {
 // TestNegatedIfCompound tests the compound || pattern where ALL conditions are
 // negated error assertions.
 func TestNegatedIfCompound(t *testing.T) {
-	var err error
+	var err, err2 error
 
-	if !assert.NoError(t, err) || !assert.Error(t, err) { // want "require-error: for error assertions use require"
+	if !assert.NoError(t, err) || !assert.NoError(t, err2) { // want "require-error: for error assertions use require"
 		return
 	}
 

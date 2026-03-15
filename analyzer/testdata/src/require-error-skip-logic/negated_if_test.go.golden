@@ -66,10 +66,10 @@ func TestNegatedIfReturnLast(t *testing.T) {
 // TestNegatedIfCompound tests the compound || pattern where ALL conditions are
 // negated error assertions.
 func TestNegatedIfCompound(t *testing.T) {
-	var err error
+	var err, err2 error
 
 	require.NoError(t, err)
-	require.Error(t, err)
+	require.NoError(t, err2)
 
 	// Skip: not all conditions are negated error assertions (Contains is not an error assertion).
 	if !assert.NoError(t, err) || !assert.Contains(t, "str", "s") {

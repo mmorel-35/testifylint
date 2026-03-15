@@ -961,7 +961,7 @@ assert.NotErrorIs(t, err, io.EOF)
 if !assert.NoError(t, err) {
     return
 }
-if !assert.NoError(t, err) || !assert.ErrorIs(t, err, io.EOF) {
+if !assert.NoError(t, err1) || !assert.NoError(t, err2) {
     return
 }
 
@@ -973,8 +973,8 @@ require.ErrorAs(t, err, &target)
 
 // Fixed forms:
 require.NoError(t, err)
-require.NoError(t, err)
-require.ErrorIs(t, err, io.EOF)
+require.NoError(t, err1)
+require.NoError(t, err2)
 ```
 
 **Autofix**: partially (for `if !assert.ErrorXxx { return/continue }` patterns). <br>
