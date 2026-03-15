@@ -1,34 +1,41 @@
 package checkers
 
 import (
+	"fmt"
 	"go/ast"
+	"go/token"
 	"regexp"
+	"sort"
+	"strings"
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/ast/inspector"
+
+	"github.com/Antonboom/testifylint/internal/analysisutil"
+	"github.com/Antonboom/testifylint/internal/testify"
 )
 
 const requireErrorReport = "for error assertions use require"
 
 // RequireError detects error assertions like
 //
-//	assert.Error(t, err) // s.Error(err), s.Assert().Error(err)
-//	assert.ErrorIs(t, err, io.EOF)
-//	assert.ErrorAs(t, err, &target)
-//	assert.EqualError(t, err, "end of file")
-//	assert.ErrorContains(t, err, "end of file")
-//	assert.NoError(t, err)
-//	assert.NotErrorIs(t, err, io.EOF)
+// assert.Error(t, err) // s.Error(err), s.Assert().Error(err)
+// assert.ErrorIs(t, err, io.EOF)
+// assert.ErrorAs(t, err, &target)
+// assert.EqualError(t, err, "end of file")
+// assert.ErrorContains(t, err, "end of file")
+// assert.NoError(t, err)
+// assert.NotErrorIs(t, err, io.EOF)
 //
 // and requires
 //
-//	require.Error(t, err) // s.Require().Error(err), s.Require().Error(err)
-//	require.ErrorIs(t, err, io.EOF)
-//	require.ErrorAs(t, err, &target)
-//	...
+// require.Error(t, err) // s.Require().Error(err), s.Require().Error(err)
+// require.ErrorIs(t, err, io.EOF)
+// require.ErrorAs(t, err, &target)
+// ...
 //
 // RequireError ignores:
-// - assertions in the `if` condition (including negated ones like `if !assert.Error`);
+// - non-negated assertions in the `if` condition;
 // - assertions in the bool expression;
 // - the entire `if-else[-if]` block, if there is an assertion in any `if` condition;
 // - the last assertion in the block, if there are no methods/functions calls after it;
@@ -36,8 +43,19 @@ const requireErrorReport = "for error assertions use require"
 // - assertions in an explicit testing cleanup function or suite teardown methods;
 // - sequence of NoError assertions.
 //
-// The `if !assert.xxx { return/continue }` pattern is handled by the
-// [NegatedAssert] checker, which covers all assertions, not just error ones.
+// RequireError also reports and provides a fix for negated error assertions in an
+// if condition when the if body consists solely of a return or continue statement
+// and there is no else clause, e.g.:
+//
+//	if !assert.NoError(t, err) {
+//	   return
+//	}
+//
+// requires
+//
+// require.NoError(t, err)
+//
+// For the same pattern applied to non-error assertions, see [NegatedAssert].
 type RequireError struct {
 	fnPattern *regexp.Regexp
 }
@@ -79,7 +97,8 @@ func (checker RequireError) Check(pass *analysis.Pass, insp *inspector.Inspector
 
 		// Also detect !assert.xxx() in if condition.
 		// Stack pattern: [..., IfStmt, UnaryExpr, CallExpr]
-		if prevPrevIsIfStmt && prevIsUnaryExpr {
+		negatedInIfCond := prevPrevIsIfStmt && prevIsUnaryExpr
+		if negatedInIfCond {
 			inIfCond = true
 		}
 
@@ -87,10 +106,11 @@ func (checker RequireError) Check(pass *analysis.Pass, insp *inspector.Inspector
 
 		// Also detect !assert.xxx() inside a BinaryExpr in an if condition.
 		// Stack pattern: [..., IfStmt, BinaryExpr, UnaryExpr, CallExpr]
-		if prevIsUnaryExpr && len(stack) >= 5 {
+		if !negatedInIfCond && prevIsUnaryExpr && len(stack) >= 5 {
 			_, prevPrevIsBinaryExpr := stack[len(stack)-3].(*ast.BinaryExpr)
 			_, p4IsIfStmt := stack[len(stack)-4].(*ast.IfStmt)
 			if prevPrevIsBinaryExpr && p4IsIfStmt {
+				negatedInIfCond = true
 				inIfCond = true
 				inBoolExpr = true
 			}
@@ -100,14 +120,15 @@ func (checker RequireError) Check(pass *analysis.Pass, insp *inspector.Inspector
 		testifyCall := NewCallMeta(pass, callExpr)
 
 		call := &callMeta{
-			call:         callExpr,
-			testifyCall:  testifyCall,
-			rootIf:       findRootIf(stack),
-			parentIf:     findNearestNode[*ast.IfStmt](stack),
-			parentBlock:  findNearestNode[*ast.BlockStmt](stack),
-			inIfCond:     inIfCond,
-			inBoolExpr:   inBoolExpr,
-			inNoErrorSeq: false, // Will be filled in below.
+			call:            callExpr,
+			testifyCall:     testifyCall,
+			rootIf:          findRootIf(stack),
+			parentIf:        findNearestNode[*ast.IfStmt](stack),
+			parentBlock:     findNearestNode[*ast.BlockStmt](stack),
+			inIfCond:        inIfCond,
+			inBoolExpr:      inBoolExpr,
+			inNoErrorSeq:    false, // Will be filled in below.
+			negatedInIfCond: negatedInIfCond,
 		}
 
 		callsByFunc[*fID] = append(callsByFunc[*fID], call)
@@ -129,6 +150,75 @@ func (checker RequireError) Check(pass *analysis.Pass, insp *inspector.Inspector
 
 	markCallsInNoErrorSequence(callsByBlock)
 
+	// Stage 2a. Identify fixable negated-if patterns for error assertions.
+	// A negated-if pattern is fixable when:
+	//   - All assertions in the if condition are negated error assertions (via ||)
+	//   - The if body is a single return or continue statement
+	//   - There is no else clause
+	type fixableIfInfo struct {
+		calls []*callMeta // Ordered error-assertion calls in the if condition.
+	}
+	fixableIfs := make(map[*ast.IfStmt]*fixableIfInfo)
+
+	for _, calls := range callsByFunc {
+		negatedIfGroups := make(map[*ast.IfStmt][]*callMeta)
+		for _, c := range calls {
+			if !c.negatedInIfCond || c.parentIf == nil || c.testifyCall == nil {
+				continue
+			}
+			// Skip if the if is part of an else-if chain: when rootIf != parentIf,
+			// parentIf is directly nested inside another if's Else field. Replacing
+			// it in isolation would leave a dangling "else" in the parent.
+			if c.rootIf != c.parentIf {
+				continue
+			}
+			if !c.testifyCall.IsAssert {
+				continue
+			}
+			// Only handle error assertions — the general case is covered by [NegatedAssert].
+			switch c.testifyCall.Fn.NameFTrimmed {
+			case "Error", "ErrorIs", "ErrorAs", "EqualError", "ErrorContains", "NoError", "NotErrorIs":
+				negatedIfGroups[c.parentIf] = append(negatedIfGroups[c.parentIf], c)
+			}
+		}
+
+		for ifStmt, group := range negatedIfGroups {
+			if !requireErrorSimpleBody(ifStmt) || ifStmt.Else != nil {
+				continue
+			}
+			// Check that ALL top-level calls in the if condition are negated
+			// error assertions (i.e. our group covers the entire condition).
+			condCalls, allNegatedOr := collectRequireErrorNegatedOrCalls(ifStmt.Cond)
+			if !allNegatedOr || len(condCalls) != len(group) {
+				continue
+			}
+			groupSet := make(map[*ast.CallExpr]struct{}, len(group))
+			for _, c := range group {
+				groupSet[c.call] = struct{}{}
+			}
+			allMatch := true
+			for _, cc := range condCalls {
+				if _, ok := groupSet[cc]; !ok {
+					allMatch = false
+					break
+				}
+			}
+			if !allMatch {
+				continue
+			}
+			// Sort by source position to keep a stable replacement order.
+			sorted := make([]*callMeta, len(group))
+			copy(sorted, group)
+			sort.Slice(sorted, func(i, j int) bool {
+				return sorted[i].call.Pos() < sorted[j].call.Pos()
+			})
+			fixableIfs[ifStmt] = &fixableIfInfo{calls: sorted}
+		}
+	}
+
+	// Tracks if statements that have already been reported (compound || case).
+	reportedIfs := make(map[*ast.IfStmt]bool)
+
 	for funcInfo, calls := range callsByFunc {
 		for i, c := range calls {
 			if m := funcInfo.meta; m.isTestCleanup || m.isGoroutine || m.isHTTPHandler {
@@ -147,6 +237,31 @@ func (checker RequireError) Check(pass *analysis.Pass, insp *inspector.Inspector
 			case "Error", "ErrorIs", "ErrorAs", "EqualError", "ErrorContains", "NoError", "NotErrorIs":
 			}
 
+			// Handle negated-if error patterns before the normal skip logic.
+			// This ensures require-error catches these even when it is the only
+			// checker enabled (the general case is also caught by [NegatedAssert]).
+			if c.negatedInIfCond && c.parentIf != nil {
+				if info := fixableIfs[c.parentIf]; info != nil {
+					if reportedIfs[c.parentIf] {
+						continue // Already reported for this if statement.
+					}
+					if p := checker.fnPattern; p != nil && !p.MatchString(c.testifyCall.Fn.Name) {
+						continue
+					}
+					reportedIfs[c.parentIf] = true
+					if fix, ok := buildRequireErrorNegatedIfFix(pass, c.parentIf, info.calls); ok {
+						diagnostics = append(diagnostics,
+							*newDiagnostic(checker.Name(), c.testifyCall, requireErrorReport, fix))
+					} else {
+						diagnostics = append(diagnostics,
+							*newDiagnostic(checker.Name(), c.testifyCall, requireErrorReport))
+					}
+					continue
+				}
+				// Non-fixable negated-if (e.g. mixed conditions): skip.
+				continue
+			}
+
 			if needToSkipBasedOnContext(c, i, calls, callsByBlock) {
 				continue
 			}
@@ -162,109 +277,225 @@ func (checker RequireError) Check(pass *analysis.Pass, insp *inspector.Inspector
 	return diagnostics
 }
 
+// requireErrorSimpleBody reports whether the body of ifStmt consists of exactly
+// one return or continue statement (no other side effects).
+func requireErrorSimpleBody(ifStmt *ast.IfStmt) bool {
+	if len(ifStmt.Body.List) != 1 {
+		return false
+	}
+	switch ifStmt.Body.List[0].(type) {
+	case *ast.ReturnStmt:
+		return true
+	case *ast.BranchStmt:
+		return ifStmt.Body.List[0].(*ast.BranchStmt).Tok == token.CONTINUE
+	}
+	return false
+}
+
+// collectRequireErrorNegatedOrCalls collects all top-level CallExpr nodes from
+// a condition that consists exclusively of negated calls (UnaryExpr with !) joined
+// by logical-or (||). Returns the calls in left-to-right order and true iff the
+// entire expression matches that pattern.
+func collectRequireErrorNegatedOrCalls(expr ast.Expr) ([]*ast.CallExpr, bool) {
+	switch e := expr.(type) {
+	case *ast.UnaryExpr:
+		if e.Op == token.NOT {
+			if ce, ok := e.X.(*ast.CallExpr); ok {
+				return []*ast.CallExpr{ce}, true
+			}
+		}
+		return nil, false
+	case *ast.BinaryExpr:
+		if e.Op != token.LOR {
+			return nil, false
+		}
+		left, leftOk := collectRequireErrorNegatedOrCalls(e.X)
+		right, rightOk := collectRequireErrorNegatedOrCalls(e.Y)
+		if !leftOk || !rightOk {
+			return nil, false
+		}
+		return append(left, right...), true
+	default:
+		return nil, false
+	}
+}
+
+// buildRequireErrorNegatedIfFix constructs a SuggestedFix that replaces the
+// entire ifStmt with one require.XXX call per error assertion in calls (in source
+// order). The require import is added to the file if it is not already present.
+func buildRequireErrorNegatedIfFix(pass *analysis.Pass, ifStmt *ast.IfStmt, calls []*callMeta) (analysis.SuggestedFix, bool) {
+	if len(calls) == 0 {
+		return analysis.SuggestedFix{}, false
+	}
+
+	qualName, importEdit, ok := addImportFix(pass.Files, calls[0].call.Pos(), testify.RequirePkgPath)
+	if !ok {
+		return analysis.SuggestedFix{}, false
+	}
+
+	indent := requireErrorLineIndent(pass, ifStmt.Pos())
+	var requireCalls []string
+	for _, c := range calls {
+		callText := analysisutil.NodeString(pass.Fset, c.testifyCall.Call)
+		newCallText := qualName + callText[len(c.testifyCall.SelectorXStr):]
+		requireCalls = append(requireCalls, newCallText)
+	}
+	newText := strings.Join(requireCalls, "\n"+indent)
+
+	textEdits := []analysis.TextEdit{
+		{
+			Pos:     ifStmt.Pos(),
+			End:     ifStmt.End(),
+			NewText: []byte(newText),
+		},
+	}
+	if importEdit != nil {
+		textEdits = append(textEdits, *importEdit)
+	}
+
+	msg := fmt.Sprintf("Replace with %s.%s", qualName, calls[0].testifyCall.Fn.Name)
+	if len(calls) > 1 {
+		msg = fmt.Sprintf("Replace with %s calls", qualName)
+	}
+
+	return analysis.SuggestedFix{
+		Message:   msg,
+		TextEdits: textEdits,
+	}, true
+}
+
+// requireErrorLineIndent returns the leading whitespace of the source line
+// containing pos.
+func requireErrorLineIndent(pass *analysis.Pass, pos token.Pos) string {
+	tokenFile := pass.Fset.File(pos)
+	if tokenFile == nil {
+		return "\t"
+	}
+
+	content, err := pass.ReadFile(tokenFile.Name())
+	if err != nil {
+		return "\t"
+	}
+
+	offset := tokenFile.Offset(pos)
+
+	lineStart := offset
+	for lineStart > 0 && content[lineStart-1] != '\n' {
+		lineStart--
+	}
+
+	end := lineStart
+	for end < offset && (content[end] == ' ' || content[end] == '\t') {
+		end++
+	}
+
+	return string(content[lineStart:end])
+}
+
 func needToSkipBasedOnContext(
-currCall *callMeta,
-currCallIndex int,
-otherCalls []*callMeta,
-callsByBlock map[*ast.BlockStmt][]*callMeta,
+	currCall *callMeta,
+	currCallIndex int,
+	otherCalls []*callMeta,
+	callsByBlock map[*ast.BlockStmt][]*callMeta,
 ) bool {
-if currCall.inIfCond || currCall.inBoolExpr || currCall.inNoErrorSeq {
-return true
-}
+	if currCall.inIfCond || currCall.inBoolExpr || currCall.inNoErrorSeq {
+		return true
+	}
 
-if currCall.rootIf != nil {
-for _, rootCall := range otherCalls {
-if (rootCall.rootIf == currCall.rootIf) && rootCall.inIfCond {
-// Skip assertions in the entire if-else[-if] block, if some of "if condition" contains assertion.
-return true
-}
-}
-}
+	if currCall.rootIf != nil {
+		for _, rootCall := range otherCalls {
+			if (rootCall.rootIf == currCall.rootIf) && rootCall.inIfCond {
+				// Skip assertions in the entire if-else[-if] block, if some of "if condition" contains assertion.
+				return true
+			}
+		}
+	}
 
-block := currCall.parentBlock
-blockCalls := callsByBlock[block]
-isLastCallInBlock := blockCalls[len(blockCalls)-1] == currCall
+	block := currCall.parentBlock
+	blockCalls := callsByBlock[block]
+	isLastCallInBlock := blockCalls[len(blockCalls)-1] == currCall
 
-noCallsAfter := true
+	noCallsAfter := true
 
-_, blockEndWithReturn := block.List[len(block.List)-1].(*ast.ReturnStmt)
-if !blockEndWithReturn {
-for i := currCallIndex + 1; i < len(otherCalls); i++ {
-nextCall := otherCalls[i]
-nextCallInElseBlock := false
+	_, blockEndWithReturn := block.List[len(block.List)-1].(*ast.ReturnStmt)
+	if !blockEndWithReturn {
+		for i := currCallIndex + 1; i < len(otherCalls); i++ {
+			nextCall := otherCalls[i]
+			nextCallInElseBlock := false
 
-if pIf := currCall.parentIf; pIf != nil && pIf.Else != nil {
-ast.Inspect(pIf.Else, func(n ast.Node) bool {
-if n == nextCall.call {
-nextCallInElseBlock = true
-return false
-}
-return true
-})
-}
+			if pIf := currCall.parentIf; pIf != nil && pIf.Else != nil {
+				ast.Inspect(pIf.Else, func(n ast.Node) bool {
+					if n == nextCall.call {
+						nextCallInElseBlock = true
+						return false
+					}
+					return true
+				})
+			}
 
-if !nextCallInElseBlock {
-noCallsAfter = false
-break
-}
-}
-}
+			if !nextCallInElseBlock {
+				noCallsAfter = false
+				break
+			}
+		}
+	}
 
-// Skip assertion if this is the last operation in the test.
-return isLastCallInBlock && noCallsAfter
+	// Skip assertion if this is the last operation in the test.
+	return isLastCallInBlock && noCallsAfter
 }
 
 func findRootIf(stack []ast.Node) *ast.IfStmt {
-nearestIf, i := findNearestNodeWithIdx[*ast.IfStmt](stack)
-for ; i > 0; i-- {
-parent, ok := stack[i-1].(*ast.IfStmt)
-if !ok {
-break
-}
-nearestIf = parent
-}
-return nearestIf
+	nearestIf, i := findNearestNodeWithIdx[*ast.IfStmt](stack)
+	for ; i > 0; i-- {
+		parent, ok := stack[i-1].(*ast.IfStmt)
+		if !ok {
+			break
+		}
+		nearestIf = parent
+	}
+	return nearestIf
 }
 
 func markCallsInNoErrorSequence(callsByBlock map[*ast.BlockStmt][]*callMeta) {
-for _, calls := range callsByBlock {
-for i, c := range calls {
-if c.testifyCall == nil {
-continue
-}
+	for _, calls := range callsByBlock {
+		for i, c := range calls {
+			if c.testifyCall == nil {
+				continue
+			}
 
-var prevIsNoError bool
-if i > 0 {
-if prev := calls[i-1].testifyCall; prev != nil {
-prevIsNoError = isNoErrorAssertion(prev.Fn.Name)
-}
-}
+			var prevIsNoError bool
+			if i > 0 {
+				if prev := calls[i-1].testifyCall; prev != nil {
+					prevIsNoError = isNoErrorAssertion(prev.Fn.Name)
+				}
+			}
 
-var nextIsNoError bool
-if i < len(calls)-1 {
-if next := calls[i+1].testifyCall; next != nil {
-nextIsNoError = isNoErrorAssertion(next.Fn.Name)
-}
-}
+			var nextIsNoError bool
+			if i < len(calls)-1 {
+				if next := calls[i+1].testifyCall; next != nil {
+					nextIsNoError = isNoErrorAssertion(next.Fn.Name)
+				}
+			}
 
-if isNoErrorAssertion(c.testifyCall.Fn.Name) && (prevIsNoError || nextIsNoError) {
-calls[i].inNoErrorSeq = true
-}
-}
-}
+			if isNoErrorAssertion(c.testifyCall.Fn.Name) && (prevIsNoError || nextIsNoError) {
+				calls[i].inNoErrorSeq = true
+			}
+		}
+	}
 }
 
 type callMeta struct {
-call         *ast.CallExpr
-testifyCall  *CallMeta
-rootIf       *ast.IfStmt // The root `if` in if-else[-if] chain.
-parentIf     *ast.IfStmt // The nearest `if`, can be equal with rootIf.
-parentBlock  *ast.BlockStmt
-inIfCond     bool // True for code like `if assert.ErrorAs(t, err, &target) {`.
-inBoolExpr   bool // True for code like `assert.Error(t, err) && assert.ErrorContains(t, err, "value")`
-inNoErrorSeq bool // True for sequence of `assert.NoError` assertions.
+	call            *ast.CallExpr
+	testifyCall     *CallMeta
+	rootIf          *ast.IfStmt // The root `if` in if-else[-if] chain.
+	parentIf        *ast.IfStmt // The nearest `if`, can be equal with rootIf.
+	parentBlock     *ast.BlockStmt
+	inIfCond        bool // True for code like `if assert.ErrorAs(t, err, &target) {`.
+	inBoolExpr      bool // True for code like `assert.Error(t, err) && assert.ErrorContains(t, err, "value")`
+	inNoErrorSeq    bool // True for sequence of `assert.NoError` assertions.
+	negatedInIfCond bool // True for code like `if !assert.NoError(t, err) {`.
 }
 
 func isNoErrorAssertion(fnName string) bool {
-return (fnName == "NoError") || (fnName == "NoErrorf")
+	return (fnName == "NoError") || (fnName == "NoErrorf")
 }

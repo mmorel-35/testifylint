@@ -222,11 +222,7 @@ func negatedAssertLineIndent(pass *analysis.Pass, pos token.Pos) string {
 
 	content, err := pass.ReadFile(tokenFile.Name())
 	if err != nil {
-		col := pass.Fset.Position(pos).Column - 1
-		if col < 0 {
-			col = 0
-		}
-		return strings.Repeat("\t", col)
+		return "\t"
 	}
 
 	offset := tokenFile.Offset(pos)

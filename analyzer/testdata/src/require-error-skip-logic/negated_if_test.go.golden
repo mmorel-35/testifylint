@@ -4,6 +4,7 @@ import (
 "testing"
 
 "github.com/stretchr/testify/assert"
+"github.com/stretchr/testify/require"
 )
 
 // TestNegatedIfReturn tests that `if !assert.Error { return }` patterns with
@@ -12,19 +13,13 @@ func TestNegatedIfReturn(t *testing.T) {
 var err error
 
 // Valid: simple pattern – should be reported and fixed.
-if !assert.NoError(t, err) { // want "require-error: for error assertions use require"
-return
-}
+require.NoError(t, err)
 
 // Valid: f-variant – should be reported and fixed.
-if !assert.NoErrorf(t, err, "msg") { // want "require-error: for error assertions use require"
-return
-}
+require.NoErrorf(t, err, "msg")
 
 // Valid: other error-assertion variants.
-if !assert.Error(t, err) { // want "require-error: for error assertions use require"
-return
-}
+require.Error(t, err)
 
 // Skip: complex body (not just return).
 if !assert.NoError(t, err) {
@@ -57,9 +52,7 @@ func TestNegatedIfContinue(t *testing.T) {
 var err error
 
 for i := 0; i < 10; i++ {
-if !assert.NoError(t, err) { // want "require-error: for error assertions use require"
-continue
-}
+require.NoError(t, err)
 }
 }
 
@@ -67,9 +60,7 @@ continue
 // last assertion in the function (correctly reported, not skipped by "last assertion" logic).
 func TestNegatedIfReturnLast(t *testing.T) {
 var err error
-if !assert.NoError(t, err) { // want "require-error: for error assertions use require"
-return
-}
+require.NoError(t, err)
 }
 
 // TestNegatedIfCompound tests the compound || pattern where ALL conditions are
@@ -77,9 +68,8 @@ return
 func TestNegatedIfCompound(t *testing.T) {
 var err error
 
-if !assert.NoError(t, err) || !assert.Error(t, err) { // want "require-error: for error assertions use require"
-return
-}
+require.NoError(t, err)
+require.Error(t, err)
 
 // Skip: not all conditions are negated error assertions (Contains is not an error assertion).
 if !assert.NoError(t, err) || !assert.Contains(t, "str", "s") {

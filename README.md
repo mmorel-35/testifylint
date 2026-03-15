@@ -106,7 +106,7 @@ https://golangci-lint.run/docs/linters/configuration/#testifylint
 | [negated-assert](#negated-assert)                   | ✅                  | ✅       |
 | [nil-compare](#nil-compare)                         | ✅                  | ✅       |
 | [regexp](#regexp)                                   | ✅                  | ✅       |
-| [require-error](#require-error)                     | ✅                  | ❌       |
+| [require-error](#require-error)                     | ✅                  | 🤏      |
 | [suite-broken-parallel](#suite-broken-parallel)     | ✅                  | ✅       |
 | [suite-dont-use-pkg](#suite-dont-use-pkg)           | ✅                  | ✅       |
 | [suite-extra-assert-call](#suite-extra-assert-call) | ✅                  | ✅       |
@@ -957,14 +957,27 @@ assert.ErrorContains(t, err, "end of file")
 assert.NoError(t, err)
 assert.NotErrorIs(t, err, io.EOF)
 
+// Also detected and fixed (with autofix):
+if !assert.NoError(t, err) {
+    return
+}
+if !assert.NoError(t, err) || !assert.ErrorIs(t, err, io.EOF) {
+    return
+}
+
 ✅
 require.Error(t, err) // s.Require().Error(err), s.Require().Error(err)
 require.ErrorIs(t, err, io.EOF)
 require.ErrorAs(t, err, &target)
 // And so on...
+
+// Fixed forms:
+require.NoError(t, err)
+require.NoError(t, err)
+require.ErrorIs(t, err, io.EOF)
 ```
 
-**Autofix**: false. <br>
+**Autofix**: partially (for `if !assert.ErrorXxx { return/continue }` patterns). <br>
 **Enabled by default**: true. <br>
 **Reason**: Such "ignoring" of errors leads to further panics, making the test harder to debug.
 
@@ -979,13 +992,15 @@ and `NoErrorf`.
 
 Also, to minimize false positives, `require-error` ignores:
 
-- assertions in the `if` condition (for the `if !assert.xxx { return }` pattern see [negated-assert](#negated-assert));
+- non-negated assertions in the `if` condition;
 - assertions in the bool expression;
 - the entire `if-else[-if]` block, if there is an assertion in any `if` condition;
 - the last assertion in the block, if there are no methods/functions calls after it;
 - assertions in an explicit goroutine (including `http.Handler`);
 - assertions in an explicit testing cleanup function or suite teardown methods;
 - sequence of `NoError` assertions.
+
+For the same `if !assert.Xxx { return }` pattern applied to **non-error** assertions, see [negated-assert](#negated-assert).
 
 ---
 
