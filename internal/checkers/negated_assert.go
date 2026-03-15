@@ -69,8 +69,10 @@ func (checker NegatedAssert) Check(pass *analysis.Pass, insp *inspector.Inspecto
 		}
 		ifStmt := node.(*ast.IfStmt)
 
-		// Pattern requires: single return/continue body, no else clause.
-		if !isNegatedAssertSimpleBody(ifStmt) || ifStmt.Else != nil {
+		// Pattern requires: single return/continue body, no else clause, no init.
+		// Skip if there is an init statement (e.g. `if err := foo(); !assert.NoError(...)`):
+		// replacing the whole if-statement would drop the init and break compilation.
+		if ifStmt.Init != nil || !isNegatedAssertSimpleBody(ifStmt) || ifStmt.Else != nil {
 			return true
 		}
 
@@ -127,29 +129,35 @@ func (checker NegatedAssert) Check(pass *analysis.Pass, insp *inspector.Inspecto
 }
 
 // isNegatedAssertSimpleBody reports whether the body of ifStmt is exactly one
-// return or continue statement.
+// return or continue statement. Other statement types (e.g. assignments, expression
+// statements) are intentionally excluded: they imply side effects that make the
+// if-block semantically non-trivial to replace with a bare require call.
 func isNegatedAssertSimpleBody(ifStmt *ast.IfStmt) bool {
 	if len(ifStmt.Body.List) != 1 {
 		return false
 	}
-	switch ifStmt.Body.List[0].(type) {
+	switch s := ifStmt.Body.List[0].(type) {
 	case *ast.ReturnStmt:
 		return true
 	case *ast.BranchStmt:
-		return ifStmt.Body.List[0].(*ast.BranchStmt).Tok == token.CONTINUE
+		return s.Tok == token.CONTINUE
 	}
 	return false
 }
 
 // collectNegatedAssertOrCalls recursively collects all top-level CallExpr nodes from
 // a condition that consists exclusively of negated calls (UnaryExpr with !) joined
-// by logical-or (||). Returns the calls in left-to-right order and true if the
-// entire expression matches that pattern; returns nil and false otherwise.
+// by logical-or (||). ParenExpr nodes are treated as transparent. Returns the calls
+// in left-to-right order and true if the entire expression matches that pattern;
+// returns nil and false otherwise.
 func collectNegatedAssertOrCalls(expr ast.Expr) ([]*ast.CallExpr, bool) {
 	switch e := expr.(type) {
+	case *ast.ParenExpr:
+		return collectNegatedAssertOrCalls(e.X)
 	case *ast.UnaryExpr:
 		if e.Op == token.NOT {
-			if ce, ok := e.X.(*ast.CallExpr); ok {
+			x := unwrapParen(e.X)
+			if ce, ok := x.(*ast.CallExpr); ok {
 				return []*ast.CallExpr{ce}, true
 			}
 		}
@@ -169,6 +177,17 @@ func collectNegatedAssertOrCalls(expr ast.Expr) ([]*ast.CallExpr, bool) {
 	}
 }
 
+// unwrapParen peels off any number of parentheses and returns the innermost expression.
+func unwrapParen(e ast.Expr) ast.Expr {
+	for {
+		p, ok := e.(*ast.ParenExpr)
+		if !ok {
+			return e
+		}
+		e = p.X
+	}
+}
+
 // buildNegatedAssertFix constructs a SuggestedFix that replaces the entire ifStmt
 // with one require.XXX call per assertion in calls (in source order).
 // The require import is added to the file if it is not already present.
@@ -183,10 +202,17 @@ func buildNegatedAssertFix(pass *analysis.Pass, ifStmt *ast.IfStmt, calls []*Cal
 	}
 
 	indent := negatedAssertLineIndent(pass, ifStmt.Pos())
-	var requireCalls []string
+	requireCalls := make([]string, 0, len(calls))
 	for _, c := range calls {
 		callText := analysisutil.NodeString(pass.Fset, c.Call)
-		newCallText := qualName + callText[len(c.SelectorXStr):]
+		var newCallText string
+		if qualName == "" {
+			// dot-import: call the function directly without a qualifier;
+			// strip the old "assert." prefix entirely.
+			newCallText = callText[len(c.SelectorXStr)+1:]
+		} else {
+			newCallText = qualName + callText[len(c.SelectorXStr):]
+		}
 		requireCalls = append(requireCalls, newCallText)
 	}
 	newText := strings.Join(requireCalls, "\n"+indent)
@@ -202,9 +228,17 @@ func buildNegatedAssertFix(pass *analysis.Pass, ifStmt *ast.IfStmt, calls []*Cal
 		textEdits = append(textEdits, *importEdit)
 	}
 
-	msg := fmt.Sprintf("Replace with %s.%s", qualName, calls[0].Fn.Name)
-	if len(calls) > 1 {
-		msg = fmt.Sprintf("Replace with %s calls", qualName)
+	var msg string
+	if qualName == "" {
+		msg = "Replace with " + calls[0].Fn.Name
+		if len(calls) > 1 {
+			msg = "Replace with require calls"
+		}
+	} else {
+		msg = fmt.Sprintf("Replace with %s.%s", qualName, calls[0].Fn.Name)
+		if len(calls) > 1 {
+			msg = "Replace with " + qualName + " calls"
+		}
 	}
 
 	return analysis.SuggestedFix{

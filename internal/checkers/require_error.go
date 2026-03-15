@@ -91,13 +91,13 @@ func (checker RequireError) Check(pass *analysis.Pass, insp *inspector.Inspector
 
 		_, prevIsIfStmt := stack[len(stack)-2].(*ast.IfStmt)
 		_, prevIsAssignStmt := stack[len(stack)-2].(*ast.AssignStmt)
-		_, prevIsUnaryExpr := stack[len(stack)-2].(*ast.UnaryExpr)
 		_, prevPrevIsIfStmt := stack[len(stack)-3].(*ast.IfStmt)
 		inIfCond := prevIsIfStmt || (prevPrevIsIfStmt && prevIsAssignStmt)
 
-		// Also detect !assert.xxx() in if condition.
-		// Stack pattern: [..., IfStmt, UnaryExpr, CallExpr]
-		negatedInIfCond := prevPrevIsIfStmt && prevIsUnaryExpr
+		// Detect !assert.xxx() in if condition, treating ParenExpr as transparent.
+		// Handles patterns like: if !assert.xxx() {}, if (!assert.xxx()) {},
+		// if !assert.xxx() || !assert.yyy() {}, etc.
+		negatedInIfCond := callIsNegatedInIfCond(stack)
 		if negatedInIfCond {
 			inIfCond = true
 		}
@@ -105,14 +105,18 @@ func (checker RequireError) Check(pass *analysis.Pass, insp *inspector.Inspector
 		_, inBoolExpr := stack[len(stack)-2].(*ast.BinaryExpr)
 
 		// Also detect !assert.xxx() inside a BinaryExpr in an if condition.
-		// Stack pattern: [..., IfStmt, BinaryExpr, UnaryExpr, CallExpr]
-		if !negatedInIfCond && prevIsUnaryExpr && len(stack) >= 5 {
-			_, prevPrevIsBinaryExpr := stack[len(stack)-3].(*ast.BinaryExpr)
-			_, p4IsIfStmt := stack[len(stack)-4].(*ast.IfStmt)
-			if prevPrevIsBinaryExpr && p4IsIfStmt {
-				negatedInIfCond = true
-				inIfCond = true
-				inBoolExpr = true
+		// Stack pattern: [..., IfStmt, BinaryExpr, ..., CallExpr]
+		if !inBoolExpr && negatedInIfCond {
+			// If the call is negated-in-if-cond and there's a BinaryExpr on the path,
+			// mark as inBoolExpr too.
+			for j := len(stack) - 2; j >= 0; j-- {
+				if _, ok := stack[j].(*ast.IfStmt); ok {
+					break
+				}
+				if _, ok := stack[j].(*ast.BinaryExpr); ok {
+					inBoolExpr = true
+					break
+				}
 			}
 		}
 
@@ -155,9 +159,6 @@ func (checker RequireError) Check(pass *analysis.Pass, insp *inspector.Inspector
 	//   - All assertions in the if condition are negated error assertions (via ||)
 	//   - The if body is a single return or continue statement
 	//   - There is no else clause
-	type fixableIfInfo struct {
-		calls []*callMeta // Ordered error-assertion calls in the if condition.
-	}
 	fixableIfs := make(map[*ast.IfStmt]*fixableIfInfo)
 
 	for _, calls := range callsByFunc {
@@ -183,7 +184,9 @@ func (checker RequireError) Check(pass *analysis.Pass, insp *inspector.Inspector
 		}
 
 		for ifStmt, group := range negatedIfGroups {
-			if !requireErrorSimpleBody(ifStmt) || ifStmt.Else != nil {
+			// Skip if-statements with an init clause: replacing them would drop
+			// the init statement and break compilation due to scope changes.
+			if ifStmt.Init != nil || !requireErrorSimpleBody(ifStmt) || ifStmt.Else != nil {
 				continue
 			}
 			// Check that ALL top-level calls in the if condition are negated
@@ -241,24 +244,7 @@ func (checker RequireError) Check(pass *analysis.Pass, insp *inspector.Inspector
 			// This ensures require-error catches these even when it is the only
 			// checker enabled (the general case is also caught by [NegatedAssert]).
 			if c.negatedInIfCond && c.parentIf != nil {
-				if info := fixableIfs[c.parentIf]; info != nil {
-					if reportedIfs[c.parentIf] {
-						continue // Already reported for this if statement.
-					}
-					if p := checker.fnPattern; p != nil && !p.MatchString(c.testifyCall.Fn.Name) {
-						continue
-					}
-					reportedIfs[c.parentIf] = true
-					if fix, ok := buildRequireErrorNegatedIfFix(pass, c.parentIf, info.calls); ok {
-						diagnostics = append(diagnostics,
-							*newDiagnostic(checker.Name(), c.testifyCall, requireErrorReport, fix))
-					} else {
-						diagnostics = append(diagnostics,
-							*newDiagnostic(checker.Name(), c.testifyCall, requireErrorReport))
-					}
-					continue
-				}
-				// Non-fixable negated-if (e.g. mixed conditions): skip.
+				diagnostics = checker.handleNegatedIfCall(pass, c, diagnostics, fixableIfs, reportedIfs)
 				continue
 			}
 
@@ -277,30 +263,67 @@ func (checker RequireError) Check(pass *analysis.Pass, insp *inspector.Inspector
 	return diagnostics
 }
 
+type fixableIfInfo struct {
+	calls []*callMeta // Ordered error-assertion calls in the if condition.
+}
+
+// handleNegatedIfCall processes a call that is in a negated if condition.
+// If the if statement is fixable, it is reported once with a SuggestedFix.
+// Otherwise the call is skipped silently.
+func (checker RequireError) handleNegatedIfCall(
+	pass *analysis.Pass,
+	c *callMeta,
+	diagnostics []analysis.Diagnostic,
+	fixableIfs map[*ast.IfStmt]*fixableIfInfo,
+	reportedIfs map[*ast.IfStmt]bool,
+) []analysis.Diagnostic {
+	info := fixableIfs[c.parentIf]
+	if info == nil {
+		// Non-fixable negated-if (e.g. mixed && conditions or non-error assertions): skip.
+		return diagnostics
+	}
+	if reportedIfs[c.parentIf] {
+		return diagnostics // Already reported for this if statement.
+	}
+	if p := checker.fnPattern; p != nil && !p.MatchString(c.testifyCall.Fn.Name) {
+		return diagnostics
+	}
+	reportedIfs[c.parentIf] = true
+	if fix, ok := buildRequireErrorNegatedIfFix(pass, c.parentIf, info.calls); ok {
+		return append(diagnostics, *newDiagnostic(checker.Name(), c.testifyCall, requireErrorReport, fix))
+	}
+	return append(diagnostics, *newDiagnostic(checker.Name(), c.testifyCall, requireErrorReport))
+}
+
 // requireErrorSimpleBody reports whether the body of ifStmt consists of exactly
-// one return or continue statement (no other side effects).
+// one return or continue statement. Other statement types (e.g. assignments,
+// expression statements) are intentionally excluded: they imply side effects that
+// make the if-block semantically non-trivial to replace with a bare require call.
 func requireErrorSimpleBody(ifStmt *ast.IfStmt) bool {
 	if len(ifStmt.Body.List) != 1 {
 		return false
 	}
-	switch ifStmt.Body.List[0].(type) {
+	switch s := ifStmt.Body.List[0].(type) {
 	case *ast.ReturnStmt:
 		return true
 	case *ast.BranchStmt:
-		return ifStmt.Body.List[0].(*ast.BranchStmt).Tok == token.CONTINUE
+		return s.Tok == token.CONTINUE
 	}
 	return false
 }
 
 // collectRequireErrorNegatedOrCalls collects all top-level CallExpr nodes from
 // a condition that consists exclusively of negated calls (UnaryExpr with !) joined
-// by logical-or (||). Returns the calls in left-to-right order and true iff the
-// entire expression matches that pattern.
+// by logical-or (||). ParenExpr nodes are treated as transparent. Returns the calls
+// in left-to-right order and true iff the entire expression matches that pattern.
 func collectRequireErrorNegatedOrCalls(expr ast.Expr) ([]*ast.CallExpr, bool) {
 	switch e := expr.(type) {
+	case *ast.ParenExpr:
+		return collectRequireErrorNegatedOrCalls(e.X)
 	case *ast.UnaryExpr:
 		if e.Op == token.NOT {
-			if ce, ok := e.X.(*ast.CallExpr); ok {
+			x := unwrapParen(e.X)
+			if ce, ok := x.(*ast.CallExpr); ok {
 				return []*ast.CallExpr{ce}, true
 			}
 		}
@@ -334,10 +357,17 @@ func buildRequireErrorNegatedIfFix(pass *analysis.Pass, ifStmt *ast.IfStmt, call
 	}
 
 	indent := requireErrorLineIndent(pass, ifStmt.Pos())
-	var requireCalls []string
+	requireCalls := make([]string, 0, len(calls))
 	for _, c := range calls {
 		callText := analysisutil.NodeString(pass.Fset, c.testifyCall.Call)
-		newCallText := qualName + callText[len(c.testifyCall.SelectorXStr):]
+		var newCallText string
+		if qualName == "" {
+			// dot-import: call the function directly without a qualifier;
+			// strip the old "assert." prefix entirely.
+			newCallText = callText[len(c.testifyCall.SelectorXStr)+1:]
+		} else {
+			newCallText = qualName + callText[len(c.testifyCall.SelectorXStr):]
+		}
 		requireCalls = append(requireCalls, newCallText)
 	}
 	newText := strings.Join(requireCalls, "\n"+indent)
@@ -353,9 +383,17 @@ func buildRequireErrorNegatedIfFix(pass *analysis.Pass, ifStmt *ast.IfStmt, call
 		textEdits = append(textEdits, *importEdit)
 	}
 
-	msg := fmt.Sprintf("Replace with %s.%s", qualName, calls[0].testifyCall.Fn.Name)
-	if len(calls) > 1 {
-		msg = fmt.Sprintf("Replace with %s calls", qualName)
+	var msg string
+	if qualName == "" {
+		msg = "Replace with " + calls[0].testifyCall.Fn.Name
+		if len(calls) > 1 {
+			msg = "Replace with require calls"
+		}
+	} else {
+		msg = fmt.Sprintf("Replace with %s.%s", qualName, calls[0].testifyCall.Fn.Name)
+		if len(calls) > 1 {
+			msg = "Replace with " + qualName + " calls"
+		}
 	}
 
 	return analysis.SuggestedFix{
@@ -498,4 +536,56 @@ type callMeta struct {
 
 func isNoErrorAssertion(fnName string) bool {
 	return (fnName == "NoError") || (fnName == "NoErrorf")
+}
+
+// callIsNegatedInIfCond reports whether the CallExpr at the end of stack is a
+// directly-negated assertion in an if condition. ParenExpr nodes are treated as
+// transparent, and any BinaryExpr nodes above the UnaryExpr are treated as
+// transparent when verifying that the nearest enclosing expression is an IfStmt.
+//
+// NOTE: both || and && are accepted here so that all negated assertions in
+// if conditions are marked as inIfCond. The narrower fixable-pattern check
+// (only ||) is enforced separately in Stage 2a via collectRequireErrorNegatedOrCalls.
+//
+// Handles patterns such as:
+//
+//	if !assert.xxx() {}
+//	if (!assert.xxx()) {}
+//	if !assert.xxx() || !assert.yyy() {}
+//	if (!assert.xxx() || !assert.yyy()) {}
+//	if !assert.xxx() && !assert.yyy() {}
+func callIsNegatedInIfCond(stack []ast.Node) bool {
+	n := len(stack)
+	if n < 3 {
+		return false
+	}
+	// Start at the parent of the CallExpr and walk upward treating ParenExpr as transparent.
+	i := n - 2
+	for i >= 0 {
+		if _, ok := stack[i].(*ast.ParenExpr); !ok {
+			break
+		}
+		i--
+	}
+	if i < 0 {
+		return false
+	}
+	// Must be a ! UnaryExpr directly enclosing the call (through optional parens).
+	unary, ok := stack[i].(*ast.UnaryExpr)
+	if !ok || unary.Op != token.NOT {
+		return false
+	}
+	i--
+	// Continue upward through ParenExpr and any BinaryExpr until we hit an IfStmt.
+	for i >= 0 {
+		switch stack[i].(type) {
+		case *ast.ParenExpr, *ast.BinaryExpr:
+			i--
+		case *ast.IfStmt:
+			return true
+		default:
+			return false
+		}
+	}
+	return false
 }
