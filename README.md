@@ -103,6 +103,7 @@ https://golangci-lint.run/docs/linters/configuration/#testifylint
 | [go-require](#go-require)                           | ✅                  | ❌       |
 | [len](#len)                                         | ✅                  | ✅       |
 | [negative-positive](#negative-positive)             | ✅                  | ✅       |
+| [negated-assert](#negated-assert)                   | ✅                  | ✅       |
 | [nil-compare](#nil-compare)                         | ✅                  | ✅       |
 | [regexp](#regexp)                                   | ✅                  | ✅       |
 | [require-error](#require-error)                     | ✅                  | ❌       |
@@ -978,13 +979,49 @@ and `NoErrorf`.
 
 Also, to minimize false positives, `require-error` ignores:
 
-- assertions in the `if` condition;
+- assertions in the `if` condition (for the `if !assert.xxx { return }` pattern see [negated-assert](#negated-assert));
 - assertions in the bool expression;
 - the entire `if-else[-if]` block, if there is an assertion in any `if` condition;
 - the last assertion in the block, if there are no methods/functions calls after it;
 - assertions in an explicit goroutine (including `http.Handler`);
 - assertions in an explicit testing cleanup function or suite teardown methods;
 - sequence of `NoError` assertions.
+
+---
+
+### negated-assert
+
+```go
+❌
+if !assert.NoError(t, err) {
+    return
+}
+if !assert.Equal(t, expected, actual) {
+    return
+}
+if !assert.NoError(t, err) || !assert.Equal(t, expected, actual) {
+    return
+}
+
+✅
+require.NoError(t, err)
+require.Equal(t, expected, actual)
+require.NoError(t, err)
+require.Equal(t, expected, actual)
+```
+
+**Autofix**: true. <br>
+**Enabled by default**: true. <br>
+**Reason**: The `if !assert.Xxx { return }` pattern is semantically equivalent to `require.Xxx` and is more
+idiomatic. This applies to **any** assertion, not only error ones.
+
+The checker skips:
+
+- patterns where the if body is not a single `return` or `continue` statement;
+- patterns with an `else` clause;
+- `else if` branches (would leave a dangling `else`);
+- patterns in goroutines, HTTP handlers, and test cleanup functions;
+- conditions using `&&` (different short-circuit semantics).
 
 ---
 

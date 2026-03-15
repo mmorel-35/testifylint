@@ -1,105 +1,60 @@
 package requireerrorskiplogic
 
 import (
-	"testing"
+"testing"
 
-	"github.com/stretchr/testify/assert"
+"github.com/stretchr/testify/assert"
 )
 
-// TestNegatedIfReturn tests that `if !assert.Error { return }` patterns are
-// detected and fixed by replacing the entire if statement with require.Error.
-func TestNegatedIfReturn(t *testing.T) {
-	var err error
+// TestNegatedIfSkippedByRequireError verifies that require-error correctly
+// skips all `if !assert.xxx { return/continue }` patterns — they are handled
+// by the dedicated negated-assert checker instead.
+func TestNegatedIfSkippedByRequireError(t *testing.T) {
+var err error
 
-	// Valid: simple pattern – should be reported and fixed.
-	if !assert.NoError(t, err) { // want "require-error: for error assertions use require"
-		return
-	}
-
-	// Valid: f-variant – should be reported and fixed.
-	if !assert.NoErrorf(t, err, "msg") { // want "require-error: for error assertions use require"
-		return
-	}
-
-	// Valid: other error-assertion variants.
-	if !assert.Error(t, err) { // want "require-error: for error assertions use require"
-		return
-	}
-
-	// Skip: complex body (not just return).
-	if !assert.NoError(t, err) {
-		_ = "something"
-		return
-	}
-
-	// Skip: positive assertion in if condition (not negated).
-	if assert.NoError(t, err) {
-		_ = err
-	}
-
-	// Skip: body has more than one statement (has else).
-	if !assert.NoError(t, err) {
-		return
-	} else {
-		_ = err
-	}
-
-	// Skip: !assert.Len is not an error assertion – not in require-error scope.
-	if !assert.Contains(t, "str", "s") {
-		return
-	}
+// All of these are handled by negated-assert, not require-error.
+if !assert.NoError(t, err) {
+return
+}
+if !assert.NoErrorf(t, err, "msg") {
+return
+}
+if !assert.Error(t, err) {
+return
+}
+if !assert.NoError(t, err) || !assert.Error(t, err) {
+return
+}
+if !assert.Contains(t, "str", "s") {
+return
+}
+for i := 0; i < 10; i++ {
+if !assert.NoError(t, err) {
+continue
+}
 }
 
-// TestNegatedIfContinue tests that `if !assert.Error { continue }` patterns
-// inside loops are detected and fixed.
-func TestNegatedIfContinue(t *testing.T) {
-	var err error
+// These patterns are correctly skipped by both checkers.
 
-	for i := 0; i < 10; i++ {
-		if !assert.NoError(t, err) { // want "require-error: for error assertions use require"
-			continue
-		}
-	}
+// Complex body — skipped (not a simple return/continue).
+if !assert.NoError(t, err) {
+_ = "something"
+return
 }
-
-// TestNegatedIfReturnLast tests the case where the negated-if pattern is the
-// last assertion in the function (previously skipped by "last assertion" logic,
-// now correctly reported and fixed).
-func TestNegatedIfReturnLast(t *testing.T) {
-	var err error
-	if !assert.NoError(t, err) { // want "require-error: for error assertions use require"
-		return
-	}
+// Positive condition — skipped (not negated).
+if assert.NoError(t, err) {
+_ = err
 }
-
-// TestNegatedIfCompound tests the compound || pattern where ALL conditions are
-// negated error assertions. Only the first assertion gets the want comment.
-func TestNegatedIfCompound(t *testing.T) {
-	var err error
-
-	if !assert.NoError(t, err) || !assert.Error(t, err) { // want "require-error: for error assertions use require"
-		return
-	}
-
-	// Skip: not all conditions are negated error assertions.
-	if !assert.NoError(t, err) || !assert.Contains(t, "str", "s") {
-		return
-	}
-
-	// Skip: && is not supported (different semantics).
-	if !assert.NoError(t, err) && !assert.Error(t, err) {
-		return
-	}
+// Has else — skipped.
+if !assert.NoError(t, err) {
+return
+} else {
+_ = err
 }
-
-// TestNegatedIfElseChain tests that else-if patterns are not broken by fixes.
-func TestNegatedIfElseChain(t *testing.T) {
-	var err error
-
-	// Skip: the outer if has an else clause.
-	if !assert.NoError(t, err) {
-		return
-	} else if !assert.Error(t, err) {
-		return
-	}
+// Else-if chain — outer has else, skipped.
+if !assert.NoError(t, err) {
+return
+} else if !assert.Error(t, err) {
+return
+}
 }

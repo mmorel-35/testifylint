@@ -149,7 +149,11 @@ func TestTestifyLint_NotDefaultCases(t *testing.T) {
 			flags: map[string]string{"disable-all": "true", "enable": checkers.NewGoRequire().Name()},
 		},
 		{
-			dir:   "not-std-funcs",
+			dir:   "negated-assert-skip-logic",
+			flags: map[string]string{"disable-all": "true", "enable": checkers.NewNegatedAssert().Name()},
+		},
+		{
+			dir: "not-std-funcs",
 			flags: map[string]string{"enable-all": "true"},
 		},
 		{dir: "not-test-file"},    // By default, linter checks regular files too.
