@@ -3,6 +3,5 @@
 .task/
 
 testifylint
-testgen
 *.out
 *.test
