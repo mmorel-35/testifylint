@@ -56,6 +56,7 @@ func Test_newCheckers(t *testing.T) {
 	}
 
 	enabledByDefaultAdvancedCheckers := []checkers.AdvancedChecker{
+		checkers.NewFailNow(),
 		checkers.NewBlankImport(),
 		checkers.NewGoRequire(),
 		checkers.NewRequireError(),
@@ -64,6 +65,7 @@ func Test_newCheckers(t *testing.T) {
 		checkers.NewSuiteSubtestRun(),
 	}
 	allAdvancedCheckers := []checkers.AdvancedChecker{
+		checkers.NewFailNow(),
 		checkers.NewBlankImport(),
 		checkers.NewGoRequire(),
 		checkers.NewRequireError(),
