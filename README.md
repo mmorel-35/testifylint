@@ -98,7 +98,7 @@ https://golangci-lint.run/docs/linters/configuration/#testifylint
 | [error-is-as](#error-is-as)                         | ✅                  | 🤏      |
 | [error-nil](#error-nil)                             | ✅                  | ✅       |
 | [expected-actual](#expected-actual)                 | ✅                  | ✅       |
-| [fail-now](#fail-now)                               | ✅                  | ❌       |
+| [fail-now](#fail-now)                               | ✅                  | ✅       |
 | [float-compare](#float-compare)                     | ✅                  | ❌       |
 | [formatter](#formatter)                             | ✅                  | 🤏      |
 | [go-require](#go-require)                           | ✅                  | ❌       |
@@ -586,7 +586,7 @@ t.Fatal("unexpected event")
 t.Fatalf("format %s", arg)
 ```
 
-**Autofix**: false. <br>
+**Autofix**: true. <br>
 **Enabled by default**: true. <br>
 **Reason**: `assert.Fail` and `assert.FailNow` (and their `f` variants) are redundant wrappers around
 the standard `testing.T` methods. Using `t.Error`, `t.Fatal`, `t.Errorf`, and `t.Fatalf` directly is
