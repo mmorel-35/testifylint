@@ -101,7 +101,7 @@ https://golangci-lint.run/docs/linters/configuration/#testifylint
 | [float-compare](#float-compare)                     | ✅                  | ❌       |
 | [formatter](#formatter)                             | ✅                  | 🤏      |
 | [go-require](#go-require)                           | ✅                  | ❌       |
-| [graceful-teardown](#graceful-teardown)             | ❌                  | ❌       |
+| [graceful-teardown](#graceful-teardown)             | ❌                  | ✅       |
 | [len](#len)                                         | ✅                  | ✅       |
 | [negative-positive](#negative-positive)             | ✅                  | ✅       |
 | [nil-compare](#nil-compare)                         | ✅                  | ✅       |
@@ -841,7 +841,7 @@ t.Cleanup(func() {
 })
 ```
 
-**Autofix**: false. <br>
+**Autofix**: true. <br>
 **Enabled by default**: false. <br>
 **Reason**: Possible resource leaks, because `require` finishes the current goroutine.
 

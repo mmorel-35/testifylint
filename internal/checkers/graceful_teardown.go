@@ -1,10 +1,13 @@
 package checkers
 
 import (
+	"fmt"
 	"go/ast"
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/ast/inspector"
+
+	"github.com/Antonboom/testifylint/internal/testify"
 )
 
 const gracefulTeardownReport = "do not use require in cleanup code"
@@ -45,10 +48,59 @@ func (checker GracefulTeardown) Check(pass *analysis.Pass, insp *inspector.Inspe
 		}
 
 		if !call.IsAssert {
-			d := newDiagnostic(checker.Name(), call, gracefulTeardownReport)
+			var fixes []analysis.SuggestedFix
+			if fix := checker.buildFix(pass, call); fix != nil {
+				fixes = append(fixes, *fix)
+			}
+			d := newDiagnostic(checker.Name(), call, gracefulTeardownReport, fixes...)
 			diagnostics = append(diagnostics, *d)
 		}
 		return false
 	})
 	return diagnostics
+}
+
+func (GracefulTeardown) buildFix(pass *analysis.Pass, call *CallMeta) *analysis.SuggestedFix {
+	if call.IsPkg {
+		// require.NoError(t, err) → assert.NoError(t, err)
+		assertLocalName, importEdit, ok := addImportFix(pass.Files, call.Pos(), testify.AssertPkgPath)
+		if !ok {
+			return nil
+		}
+
+		textEdits := []analysis.TextEdit{
+			{
+				Pos:     call.Selector.X.Pos(),
+				End:     call.Selector.X.End(),
+				NewText: []byte(assertLocalName),
+			},
+		}
+		if importEdit != nil {
+			textEdits = append(textEdits, *importEdit)
+		}
+		return &analysis.SuggestedFix{
+			Message:   fmt.Sprintf("Replace `%s` with `%s`", call.SelectorXStr, assertLocalName),
+			TextEdits: textEdits,
+		}
+	}
+
+	// s.Require().NoError(nil) → s.Assert().NoError(nil)
+	requireCallExpr, ok := call.Selector.X.(*ast.CallExpr)
+	if !ok {
+		return nil
+	}
+	requireSel, ok := requireCallExpr.Fun.(*ast.SelectorExpr)
+	if !ok || requireSel.Sel == nil || requireSel.Sel.Name != "Require" {
+		return nil
+	}
+	return &analysis.SuggestedFix{
+		Message: "Replace `Require` with `Assert`",
+		TextEdits: []analysis.TextEdit{
+			{
+				Pos:     requireSel.Sel.Pos(),
+				End:     requireSel.Sel.End(),
+				NewText: []byte("Assert"),
+			},
+		},
+	}
 }

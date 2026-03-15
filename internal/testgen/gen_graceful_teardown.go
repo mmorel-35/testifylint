@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"text/template"
 
 	"github.com/Antonboom/testifylint/internal/checkers"
@@ -33,8 +34,16 @@ func (GracefulTeardownTestsGenerator) ErroredTemplate() Executor {
 }
 
 func (GracefulTeardownTestsGenerator) GoldenTemplate() Executor {
-	// NOTE(a.telyshev): No autofix for graceful-teardown – requires manual refactoring.
-	return nil
+	golden := strings.ReplaceAll(gracefulTeardownTestTmpl,
+		"\t\trequire.NoError(t, err) // want {{ $.Report }}",
+		"\t\tassert.NoError(t, err) // want {{ $.Report }}")
+	golden = strings.ReplaceAll(golden,
+		"\t\trequire.Nil(t, err)     // want {{ $.Report }}",
+		"\t\tassert.Nil(t, err)     // want {{ $.Report }}")
+	golden = strings.ReplaceAll(golden,
+		"\ts.Require().NoError(nil) // want {{ $.Report }}",
+		"\ts.Assert().NoError(nil) // want {{ $.Report }}")
+	return template.Must(template.New("GracefulTeardownTestsGenerator.GoldenTemplate").Parse(golden))
 }
 
 const gracefulTeardownTestTmpl = header + `

@@ -203,7 +203,7 @@ func (s *ServiceIntegrationSuite) TearDownTest() {
 }
 ```
 
-**Autofix**: false. <br>
+**Autofix**: true. <br>
 **Enabled by default**: false. <br>
 **Reason**: Possible resource leaks, because `require` finishes the current goroutine. <br>
 **Related issues**: [#142](https://github.com/Antonboom/testifylint/issues/142)
