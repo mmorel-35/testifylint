@@ -3,8 +3,10 @@ package checkers
 import (
 	"fmt"
 	"go/ast"
+	"go/types"
 
 	"golang.org/x/tools/go/analysis"
+	"golang.org/x/tools/go/ast/inspector"
 
 	"github.com/Antonboom/testifylint/internal/analysisutil"
 )
@@ -28,34 +30,74 @@ type FailNow struct{}
 func NewFailNow() FailNow    { return FailNow{} }
 func (FailNow) Name() string { return "fail-now" }
 
-func (checker FailNow) Check(pass *analysis.Pass, call *CallMeta) *analysis.Diagnostic {
-	switch call.Fn.NameFTrimmed {
-	case "Fail":
-		return newDiagnostic(checker.Name(), call, "use t.Error or t.Errorf instead",
-			checker.fix(pass, call, "Error")...)
+func (checker FailNow) Check(pass *analysis.Pass, insp *inspector.Inspector) (diagnostics []analysis.Diagnostic) {
+	insp.WithStack([]ast.Node{(*ast.CallExpr)(nil)}, func(node ast.Node, push bool, stack []ast.Node) bool {
+		if !push {
+			return false
+		}
 
-	case "FailNow":
-		return newDiagnostic(checker.Name(), call, "use t.Fatal or t.Fatalf instead",
-			checker.fix(pass, call, "Fatal")...)
+		ce := node.(*ast.CallExpr)
+		call := NewCallMeta(pass, ce)
+		if call == nil {
+			return true
+		}
+
+		var msg string
+		var proposedFn string
+		switch call.Fn.NameFTrimmed {
+		case "Fail":
+			msg = "use t.Error or t.Errorf instead"
+			proposedFn = "Error"
+		case "FailNow":
+			msg = "use t.Fatal or t.Fatalf instead"
+			proposedFn = "Fatal"
+		default:
+			return true
+		}
+
+		// Skip non-pkg non-suite method calls (e.g., assertObj.Fail(...)) where there is
+		// no accessible testing.T variable to suggest in the message.
+		if !call.IsPkg && !implementsTestifySuite(pass, call.Selector.X) {
+			return true
+		}
+
+		// Only provide the autofix when the call result is definitely discarded,
+		// to avoid producing uncompilable code when the bool result is used in an expression.
+		var fixes []analysis.SuggestedFix
+		if isCallResultDiscarded(stack) {
+			fixes = checker.fix(pass, call, proposedFn)
+		}
+
+		diagnostics = append(diagnostics, *newDiagnostic(checker.Name(), call, msg, fixes...))
+		return true
+	})
+	return diagnostics
+}
+
+// isCallResultDiscarded reports whether the call result is discarded
+// (i.e., the call is an expression statement, go statement, or defer statement).
+func isCallResultDiscarded(stack []ast.Node) bool {
+	if len(stack) < 2 {
+		return false
 	}
-	return nil
+	switch stack[len(stack)-2].(type) {
+	case *ast.ExprStmt, *ast.GoStmt, *ast.DeferStmt:
+		return true
+	}
+	return false
 }
 
 // fix builds a SuggestedFix replacing the testify call with a standard testing.T method call.
 //
-// Caller variable is resolved as:
-//   - for package-level calls (IsPkg == true): the first raw argument (the TestingT)
-//   - for method calls on a testify suite (IsPkg == false): "receiver.T()"
-//
 // Argument mapping:
 //
-// Fmt variants (Failf/FailNowf):   drop failureMessage, keep format + args
+// Fmt variants (Failf/FailNowf): drop failureMessage, keep format + args
 //
 //	assert.Failf(t, "failure", "fmt %s", arg) → t.Errorf("fmt %s", arg)
 //
 // Non-fmt, 1 arg (failureMessage only):
 //
-//	assert.Fail(t, "msg")           → t.Error("msg")
+//	assert.Fail(t, "msg") → t.Error("msg")
 //
 // Non-fmt, 2 args (failureMessage + one msgAndArgs element):
 //
@@ -65,7 +107,7 @@ func (checker FailNow) Check(pass *analysis.Pass, call *CallMeta) *analysis.Diag
 //
 //	assert.Fail(t, "failure", "fmt %s", arg) → t.Errorf("fmt %s", arg)
 func (checker FailNow) fix(pass *analysis.Pass, call *CallMeta, proposedFn string) []analysis.SuggestedFix {
-	callerVar, ok := checker.callerVar(pass, call)
+	callerVar, callerExpr, ok := checker.callerVar(pass, call)
 	if !ok {
 		return nil
 	}
@@ -97,8 +139,12 @@ func (checker FailNow) fix(pass *analysis.Pass, call *CallMeta, proposedFn strin
 		}
 	}
 
-	newText := []byte(fmt.Sprintf("%s.%s(%s)", callerVar, fn, formatAsCallArgs(pass, newArgs...)))
+	// Guard: only emit the fix if the target method exists on the caller's type.
+	if !typeHasMethod(pass, callerExpr, fn) {
+		return nil
+	}
 
+	newText := []byte(fmt.Sprintf("%s.%s(%s)", callerVar, fn, formatAsCallArgs(pass, newArgs...)))
 	return []analysis.SuggestedFix{{
 		Message: fmt.Sprintf("Replace `%s` with `%s.%s`", call.Fn.Name, callerVar, fn),
 		TextEdits: []analysis.TextEdit{{
@@ -109,20 +155,36 @@ func (checker FailNow) fix(pass *analysis.Pass, call *CallMeta, proposedFn strin
 	}}
 }
 
-// callerVar returns the string to use as the testing.T variable in the replacement call.
-//   - Package-level calls (assert.Fail(t, ...)): returns the string of the t argument.
-//   - Suite method calls (s.Fail(...)): returns "s.T()" so the fix becomes s.T().Error(...).
-func (checker FailNow) callerVar(pass *analysis.Pass, call *CallMeta) (string, bool) {
+// callerVar returns the string form and AST expression for the testing.T variable:
+//   - for package-level calls (assert.Fail(t, ...)): returns the t argument and its expr.
+//   - for suite method calls (s.Fail(...)): returns "s.T()" with nil expr (s.T() is *testing.T).
+func (checker FailNow) callerVar(pass *analysis.Pass, call *CallMeta) (callerStr string, callerExpr ast.Expr, ok bool) {
 	if call.IsPkg {
 		if len(call.ArgsRaw) == 0 {
-			return "", false
+			return "", nil, false
 		}
-		return analysisutil.NodeString(pass.Fset, call.ArgsRaw[0]), true
+		arg := call.ArgsRaw[0]
+		return analysisutil.NodeString(pass.Fset, arg), arg, true
 	}
 
-	// For method calls, the receiver must be a testify suite so we can use .T() to get *testing.T.
+	// Suite method call: use receiver.T() to access *testing.T.
 	if implementsTestifySuite(pass, call.Selector.X) {
-		return analysisutil.NodeString(pass.Fset, call.Selector.X) + ".T()", true
+		return analysisutil.NodeString(pass.Fset, call.Selector.X) + ".T()", nil, true
 	}
-	return "", false
+	return "", nil, false
+}
+
+// typeHasMethod reports whether the type of expr has an accessible method named methodName.
+// If expr is nil (used for synthetic callers like "s.T()"), returns true assuming *testing.T.
+func typeHasMethod(pass *analysis.Pass, expr ast.Expr, methodName string) bool {
+	if expr == nil {
+		// Caller is a derived expression (e.g., "s.T()"). *testing.T has all needed methods.
+		return true
+	}
+	t := pass.TypesInfo.TypeOf(expr)
+	if t == nil {
+		return false
+	}
+	obj, _, _ := types.LookupFieldOrMethod(t, true, nil, methodName)
+	return obj != nil
 }

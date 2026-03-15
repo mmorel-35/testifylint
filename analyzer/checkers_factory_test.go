@@ -33,7 +33,6 @@ func Test_newCheckers(t *testing.T) {
 		checkers.NewSuiteDontUsePkg(),
 		checkers.NewUselessAssert(),
 		checkers.NewFormatter(),
-		checkers.NewFailNow(),
 	}
 	allRegularCheckers := []checkers.RegularChecker{
 		checkers.NewFloatCompare(),
@@ -54,10 +53,10 @@ func Test_newCheckers(t *testing.T) {
 		checkers.NewSuiteDontUsePkg(),
 		checkers.NewUselessAssert(),
 		checkers.NewFormatter(),
-		checkers.NewFailNow(),
 	}
 
 	enabledByDefaultAdvancedCheckers := []checkers.AdvancedChecker{
+		checkers.NewFailNow(),
 		checkers.NewBlankImport(),
 		checkers.NewGoRequire(),
 		checkers.NewRequireError(),
@@ -66,6 +65,7 @@ func Test_newCheckers(t *testing.T) {
 		checkers.NewSuiteSubtestRun(),
 	}
 	allAdvancedCheckers := []checkers.AdvancedChecker{
+		checkers.NewFailNow(),
 		checkers.NewBlankImport(),
 		checkers.NewGoRequire(),
 		checkers.NewRequireError(),

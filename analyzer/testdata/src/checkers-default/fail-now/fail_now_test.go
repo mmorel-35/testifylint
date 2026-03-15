@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-// FailNowCheckerSuite is a suite to test suite method call fixes.
+// FailNowCheckerSuite covers suite method call fixes.
 type FailNowCheckerSuite struct {
 	suite.Suite
 }
@@ -20,7 +20,7 @@ func TestFailNowCheckerSuite(t *testing.T) {
 }
 
 func (s *FailNowCheckerSuite) TestFixSuiteMethod() {
-	// Suite method calls: fixed via s.T().Error/Fatal.
+	// Invalid (statement context – fix provided via s.T()).
 	s.Fail("failure")                      // want "fail-now: use t\\.Error or t\\.Errorf instead"
 	s.Fail("failure", "extra msg")         // want "fail-now: use t\\.Error or t\\.Errorf instead"
 	s.Fail("failure", "fmt %s", "arg")     // want "fail-now: use t\\.Error or t\\.Errorf instead"
@@ -32,32 +32,41 @@ func (s *FailNowCheckerSuite) TestFixSuiteMethod() {
 }
 
 func TestFailNowChecker(t *testing.T) {
-	// Invalid.
+	// Invalid – statement context: diagnostic + fix.
 	{
-		// Fail: single arg → t.Error(failureMessage).
-		assert.Fail(t, "failure")  // want "fail-now: use t\\.Error or t\\.Errorf instead"
-		require.Fail(t, "failure") // want "fail-now: use t\\.Error or t\\.Errorf instead"
-		// Fail: two args → t.Error(msg), drop failureMessage.
-		assert.Fail(t, "failure", "extra msg")  // want "fail-now: use t\\.Error or t\\.Errorf instead"
-		require.Fail(t, "failure", "extra msg") // want "fail-now: use t\\.Error or t\\.Errorf instead"
-		// Fail: three+ args → t.Errorf(format, args...), drop failureMessage.
-		assert.Fail(t, "failure", "fmt %s", "arg")  // want "fail-now: use t\\.Error or t\\.Errorf instead"
-		require.Fail(t, "failure", "fmt %s", "arg") // want "fail-now: use t\\.Error or t\\.Errorf instead"
-		// Failf: drop failureMessage, keep format + args.
-		assert.Failf(t, "failure", "fmt %s", "arg")  // want "fail-now: use t\\.Error or t\\.Errorf instead"
-		require.Failf(t, "failure", "fmt %s", "arg") // want "fail-now: use t\\.Error or t\\.Errorf instead"
-
-		// FailNow: single arg → t.Fatal(failureMessage).
-		assert.FailNow(t, "failure")  // want "fail-now: use t\\.Fatal or t\\.Fatalf instead"
-		require.FailNow(t, "failure") // want "fail-now: use t\\.Fatal or t\\.Fatalf instead"
-		// FailNow: two args → t.Fatal(msg), drop failureMessage.
-		assert.FailNow(t, "failure", "extra msg")  // want "fail-now: use t\\.Fatal or t\\.Fatalf instead"
-		require.FailNow(t, "failure", "extra msg") // want "fail-now: use t\\.Fatal or t\\.Fatalf instead"
-		// FailNow: three+ args → t.Fatalf(format, args...), drop failureMessage.
+		assert.Fail(t, "failure")                      // want "fail-now: use t\\.Error or t\\.Errorf instead"
+		assert.Fail(t, "failure", "extra msg")         // want "fail-now: use t\\.Error or t\\.Errorf instead"
+		assert.Fail(t, "failure", "fmt %s", "arg")     // want "fail-now: use t\\.Error or t\\.Errorf instead"
+		assert.Failf(t, "failure", "fmt %s", "arg")    // want "fail-now: use t\\.Error or t\\.Errorf instead"
+		assert.FailNow(t, "failure")                   // want "fail-now: use t\\.Fatal or t\\.Fatalf instead"
+		assert.FailNow(t, "failure", "extra msg")      // want "fail-now: use t\\.Fatal or t\\.Fatalf instead"
 		assert.FailNow(t, "failure", "fmt %s", "arg")  // want "fail-now: use t\\.Fatal or t\\.Fatalf instead"
-		require.FailNow(t, "failure", "fmt %s", "arg") // want "fail-now: use t\\.Fatal or t\\.Fatalf instead"
-		// FailNowf: drop failureMessage, keep format + args.
-		assert.FailNowf(t, "failure", "fmt %s", "arg")  // want "fail-now: use t\\.Fatal or t\\.Fatalf instead"
+		assert.FailNowf(t, "failure", "fmt %s", "arg") // want "fail-now: use t\\.Fatal or t\\.Fatalf instead"
+
+		require.Fail(t, "failure")                      // want "fail-now: use t\\.Error or t\\.Errorf instead"
+		require.Fail(t, "failure", "extra msg")         // want "fail-now: use t\\.Error or t\\.Errorf instead"
+		require.Fail(t, "failure", "fmt %s", "arg")     // want "fail-now: use t\\.Error or t\\.Errorf instead"
+		require.Failf(t, "failure", "fmt %s", "arg")    // want "fail-now: use t\\.Error or t\\.Errorf instead"
+		require.FailNow(t, "failure")                   // want "fail-now: use t\\.Fatal or t\\.Fatalf instead"
+		require.FailNow(t, "failure", "extra msg")      // want "fail-now: use t\\.Fatal or t\\.Fatalf instead"
+		require.FailNow(t, "failure", "fmt %s", "arg")  // want "fail-now: use t\\.Fatal or t\\.Fatalf instead"
 		require.FailNowf(t, "failure", "fmt %s", "arg") // want "fail-now: use t\\.Fatal or t\\.Fatalf instead"
+	}
+
+	// Invalid – expression context: diagnostic only, no fix.
+	{
+		_ = assert.Fail(t, "failure")    // want "fail-now: use t\\.Error or t\\.Errorf instead"
+		_ = assert.FailNow(t, "failure") // want "fail-now: use t\\.Fatal or t\\.Fatalf instead"
+	}
+
+	// Valid – assertion objects (non-suite method calls): ignored.
+	{
+		a := assert.New(t)
+		a.Fail("failure")
+		a.FailNow("failure")
+
+		r := require.New(t)
+		r.Fail("failure")
+		r.FailNow("failure")
 	}
 }

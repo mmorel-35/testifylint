@@ -49,7 +49,7 @@ import (
 "github.com/stretchr/testify/suite"
 )
 
-// {{ .CheckerName.AsSuiteName }} is a suite to test suite method call fixes.
+// {{ .CheckerName.AsSuiteName }} covers suite method call fixes.
 type {{ .CheckerName.AsSuiteName }} struct {
 suite.Suite
 }
@@ -59,45 +59,54 @@ suite.Run(t, new({{ .CheckerName.AsSuiteName }}))
 }
 
 func (s *{{ .CheckerName.AsSuiteName }}) TestFixSuiteMethod() {
-// Suite method calls: fixed via s.T().Error/Fatal.
-s.Fail("failure") // want {{ QuoteReport .FailReport }}
-s.Fail("failure", "extra msg") // want {{ QuoteReport .FailReport }}
-s.Fail("failure", "fmt %s", "arg") // want {{ QuoteReport .FailReport }}
-s.Failf("failure", "fmt %s", "arg") // want {{ QuoteReport .FailReport }}
-s.FailNow("failure") // want {{ QuoteReport .NowReport }}
-s.FailNow("failure", "extra msg") // want {{ QuoteReport .NowReport }}
-s.FailNow("failure", "fmt %s", "arg") // want {{ QuoteReport .NowReport }}
+// Invalid (statement context – fix provided via s.T()).
+s.Fail("failure")                      // want {{ QuoteReport .FailReport }}
+s.Fail("failure", "extra msg")         // want {{ QuoteReport .FailReport }}
+s.Fail("failure", "fmt %s", "arg")     // want {{ QuoteReport .FailReport }}
+s.Failf("failure", "fmt %s", "arg")    // want {{ QuoteReport .FailReport }}
+s.FailNow("failure")                   // want {{ QuoteReport .NowReport }}
+s.FailNow("failure", "extra msg")      // want {{ QuoteReport .NowReport }}
+s.FailNow("failure", "fmt %s", "arg")  // want {{ QuoteReport .NowReport }}
 s.FailNowf("failure", "fmt %s", "arg") // want {{ QuoteReport .NowReport }}
 }
 
 func {{ .CheckerName.AsTestName }}(t *testing.T) {
-// Invalid.
+// Invalid – statement context: diagnostic + fix.
 {
-// Fail: single arg → t.Error(failureMessage).
-assert.Fail(t, "failure") // want {{ QuoteReport .FailReport }}
-require.Fail(t, "failure") // want {{ QuoteReport .FailReport }}
-// Fail: two args → t.Error(msg), drop failureMessage.
-assert.Fail(t, "failure", "extra msg") // want {{ QuoteReport .FailReport }}
-require.Fail(t, "failure", "extra msg") // want {{ QuoteReport .FailReport }}
-// Fail: three+ args → t.Errorf(format, args...), drop failureMessage.
-assert.Fail(t, "failure", "fmt %s", "arg") // want {{ QuoteReport .FailReport }}
-require.Fail(t, "failure", "fmt %s", "arg") // want {{ QuoteReport .FailReport }}
-// Failf: drop failureMessage, keep format + args.
-assert.Failf(t, "failure", "fmt %s", "arg") // want {{ QuoteReport .FailReport }}
-require.Failf(t, "failure", "fmt %s", "arg") // want {{ QuoteReport .FailReport }}
-
-// FailNow: single arg → t.Fatal(failureMessage).
-assert.FailNow(t, "failure") // want {{ QuoteReport .NowReport }}
-require.FailNow(t, "failure") // want {{ QuoteReport .NowReport }}
-// FailNow: two args → t.Fatal(msg), drop failureMessage.
-assert.FailNow(t, "failure", "extra msg") // want {{ QuoteReport .NowReport }}
-require.FailNow(t, "failure", "extra msg") // want {{ QuoteReport .NowReport }}
-// FailNow: three+ args → t.Fatalf(format, args...), drop failureMessage.
-assert.FailNow(t, "failure", "fmt %s", "arg") // want {{ QuoteReport .NowReport }}
-require.FailNow(t, "failure", "fmt %s", "arg") // want {{ QuoteReport .NowReport }}
-// FailNowf: drop failureMessage, keep format + args.
+assert.Fail(t, "failure")                      // want {{ QuoteReport .FailReport }}
+assert.Fail(t, "failure", "extra msg")         // want {{ QuoteReport .FailReport }}
+assert.Fail(t, "failure", "fmt %s", "arg")     // want {{ QuoteReport .FailReport }}
+assert.Failf(t, "failure", "fmt %s", "arg")    // want {{ QuoteReport .FailReport }}
+assert.FailNow(t, "failure")                   // want {{ QuoteReport .NowReport }}
+assert.FailNow(t, "failure", "extra msg")      // want {{ QuoteReport .NowReport }}
+assert.FailNow(t, "failure", "fmt %s", "arg")  // want {{ QuoteReport .NowReport }}
 assert.FailNowf(t, "failure", "fmt %s", "arg") // want {{ QuoteReport .NowReport }}
+
+require.Fail(t, "failure")                      // want {{ QuoteReport .FailReport }}
+require.Fail(t, "failure", "extra msg")         // want {{ QuoteReport .FailReport }}
+require.Fail(t, "failure", "fmt %s", "arg")     // want {{ QuoteReport .FailReport }}
+require.Failf(t, "failure", "fmt %s", "arg")    // want {{ QuoteReport .FailReport }}
+require.FailNow(t, "failure")                   // want {{ QuoteReport .NowReport }}
+require.FailNow(t, "failure", "extra msg")      // want {{ QuoteReport .NowReport }}
+require.FailNow(t, "failure", "fmt %s", "arg")  // want {{ QuoteReport .NowReport }}
 require.FailNowf(t, "failure", "fmt %s", "arg") // want {{ QuoteReport .NowReport }}
+}
+
+// Invalid – expression context: diagnostic only, no fix.
+{
+_ = assert.Fail(t, "failure")    // want {{ QuoteReport .FailReport }}
+_ = assert.FailNow(t, "failure") // want {{ QuoteReport .NowReport }}
+}
+
+// Valid – assertion objects (non-suite method calls): ignored.
+{
+a := assert.New(t)
+a.Fail("failure")
+a.FailNow("failure")
+
+r := require.New(t)
+r.Fail("failure")
+r.FailNow("failure")
 }
 }
 `
@@ -114,7 +123,7 @@ import (
 "github.com/stretchr/testify/suite"
 )
 
-// {{ .CheckerName.AsSuiteName }} is a suite to test suite method call fixes.
+// {{ .CheckerName.AsSuiteName }} covers suite method call fixes.
 type {{ .CheckerName.AsSuiteName }} struct {
 suite.Suite
 }
@@ -124,45 +133,54 @@ suite.Run(t, new({{ .CheckerName.AsSuiteName }}))
 }
 
 func (s *{{ .CheckerName.AsSuiteName }}) TestFixSuiteMethod() {
-// Suite method calls: fixed via s.T().Error/Fatal.
-s.T().Error("failure") // want {{ QuoteReport .FailReport }}
-s.T().Error("extra msg") // want {{ QuoteReport .FailReport }}
+// Invalid (statement context – fix provided via s.T()).
+s.T().Error("failure")        // want {{ QuoteReport .FailReport }}
+s.T().Error("extra msg")      // want {{ QuoteReport .FailReport }}
 s.T().Errorf("fmt %s", "arg") // want {{ QuoteReport .FailReport }}
 s.T().Errorf("fmt %s", "arg") // want {{ QuoteReport .FailReport }}
-s.T().Fatal("failure") // want {{ QuoteReport .NowReport }}
-s.T().Fatal("extra msg") // want {{ QuoteReport .NowReport }}
+s.T().Fatal("failure")        // want {{ QuoteReport .NowReport }}
+s.T().Fatal("extra msg")      // want {{ QuoteReport .NowReport }}
 s.T().Fatalf("fmt %s", "arg") // want {{ QuoteReport .NowReport }}
 s.T().Fatalf("fmt %s", "arg") // want {{ QuoteReport .NowReport }}
 }
 
 func {{ .CheckerName.AsTestName }}(t *testing.T) {
-// Invalid.
+// Invalid – statement context: diagnostic + fix.
 {
-// Fail: single arg → t.Error(failureMessage).
-t.Error("failure") // want {{ QuoteReport .FailReport }}
-t.Error("failure") // want {{ QuoteReport .FailReport }}
-// Fail: two args → t.Error(msg), drop failureMessage.
-t.Error("extra msg") // want {{ QuoteReport .FailReport }}
-t.Error("extra msg") // want {{ QuoteReport .FailReport }}
-// Fail: three+ args → t.Errorf(format, args...), drop failureMessage.
-t.Errorf("fmt %s", "arg") // want {{ QuoteReport .FailReport }}
-t.Errorf("fmt %s", "arg") // want {{ QuoteReport .FailReport }}
-// Failf: drop failureMessage, keep format + args.
-t.Errorf("fmt %s", "arg") // want {{ QuoteReport .FailReport }}
-t.Errorf("fmt %s", "arg") // want {{ QuoteReport .FailReport }}
+t.Error("failure")                      // want {{ QuoteReport .FailReport }}
+t.Error("extra msg")                    // want {{ QuoteReport .FailReport }}
+t.Errorf("fmt %s", "arg")               // want {{ QuoteReport .FailReport }}
+t.Errorf("fmt %s", "arg")               // want {{ QuoteReport .FailReport }}
+t.Fatal("failure")                      // want {{ QuoteReport .NowReport }}
+t.Fatal("extra msg")                    // want {{ QuoteReport .NowReport }}
+t.Fatalf("fmt %s", "arg")               // want {{ QuoteReport .NowReport }}
+t.Fatalf("fmt %s", "arg")               // want {{ QuoteReport .NowReport }}
 
-// FailNow: single arg → t.Fatal(failureMessage).
-t.Fatal("failure") // want {{ QuoteReport .NowReport }}
-t.Fatal("failure") // want {{ QuoteReport .NowReport }}
-// FailNow: two args → t.Fatal(msg), drop failureMessage.
-t.Fatal("extra msg") // want {{ QuoteReport .NowReport }}
-t.Fatal("extra msg") // want {{ QuoteReport .NowReport }}
-// FailNow: three+ args → t.Fatalf(format, args...), drop failureMessage.
-t.Fatalf("fmt %s", "arg") // want {{ QuoteReport .NowReport }}
-t.Fatalf("fmt %s", "arg") // want {{ QuoteReport .NowReport }}
-// FailNowf: drop failureMessage, keep format + args.
-t.Fatalf("fmt %s", "arg") // want {{ QuoteReport .NowReport }}
-t.Fatalf("fmt %s", "arg") // want {{ QuoteReport .NowReport }}
+t.Error("failure")                      // want {{ QuoteReport .FailReport }}
+t.Error("extra msg")                    // want {{ QuoteReport .FailReport }}
+t.Errorf("fmt %s", "arg")               // want {{ QuoteReport .FailReport }}
+t.Errorf("fmt %s", "arg")               // want {{ QuoteReport .FailReport }}
+t.Fatal("failure")                      // want {{ QuoteReport .NowReport }}
+t.Fatal("extra msg")                    // want {{ QuoteReport .NowReport }}
+t.Fatalf("fmt %s", "arg")               // want {{ QuoteReport .NowReport }}
+t.Fatalf("fmt %s", "arg")               // want {{ QuoteReport .NowReport }}
+}
+
+// Invalid – expression context: diagnostic only, no fix.
+{
+_ = assert.Fail(t, "failure")    // want {{ QuoteReport .FailReport }}
+_ = assert.FailNow(t, "failure") // want {{ QuoteReport .NowReport }}
+}
+
+// Valid – assertion objects (non-suite method calls): ignored.
+{
+a := assert.New(t)
+a.Fail("failure")
+a.FailNow("failure")
+
+r := require.New(t)
+r.Fail("failure")
+r.FailNow("failure")
 }
 }
 `
