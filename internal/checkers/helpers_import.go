@@ -18,7 +18,7 @@ import (
 // name would be pathological.
 const maxImportNameRetries = 9
 
-// addImportFix returns the local qualifier name for pkgPath in the file containing pos
+// AddImportFix returns the local qualifier name for pkgPath in the file containing pos
 // and an optional TextEdit to add the import if it is not already present.
 //
 // Return values:
@@ -26,7 +26,7 @@ const maxImportNameRetries = 9
 //   - (name, nil,  true)  — pkgPath is already imported under name
 //   - (name, edit, true)  — pkgPath is absent and a non-conflicting import can be inserted
 //   - ("",   nil,  false) — pkgPath is blank-imported or all candidate names are taken
-func addImportFix(files []*ast.File, pos token.Pos, pkgPath string) (name string, edit *analysis.TextEdit, ok bool) {
+func AddImportFix(files []*ast.File, pos token.Pos, pkgPath string) (name string, edit *analysis.TextEdit, ok bool) {
 	// Find the file containing pos.
 	var file *ast.File
 	for _, f := range files {
@@ -226,7 +226,34 @@ func importInsertEdit(file *ast.File, pkgPath, specText string) analysis.TextEdi
 			}
 		}
 
-		// Third-party package (or empty block): append before the closing ')'.
+		// Non-stdlib (third-party or local): insert at the alphabetical position among
+		// non-stdlib specs to respect GCI import-group ordering. Scanning specs in file
+		// order and inserting before the first non-stdlib entry whose path is
+		// lexicographically greater preserves any blank-line group separators that GCI
+		// may have added, because blank lines live between spec positions and are
+		// unaffected by inserting text at a spec boundary.
+		for _, spec := range genDecl.Specs {
+			imp, ok := spec.(*ast.ImportSpec)
+			if !ok {
+				continue
+			}
+			p, err := strconv.Unquote(imp.Path.Value)
+			if err != nil || isStdlibPath(p) {
+				continue
+			}
+			if p > pkgPath {
+				// Insert before this spec; the file already has the tab indent before it,
+				// so we append "\n\t" after specText to keep the displaced spec indented.
+				return analysis.TextEdit{
+					Pos:     spec.Pos(),
+					End:     spec.Pos(),
+					NewText: []byte(specText + "\n\t"),
+				}
+			}
+		}
+
+		// All non-stdlib specs are alphabetically ≤ pkgPath, or there are none:
+		// append before the closing ')'.
 		return analysis.TextEdit{
 			Pos:     genDecl.Rparen,
 			End:     genDecl.Rparen,
