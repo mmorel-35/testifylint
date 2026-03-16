@@ -93,6 +93,12 @@ func {{ .CheckerName.AsTestName }}_FreshT(t *testing.T) {
 	v := new(testing.T)
 	assert.NoError(v, err) // want {{ $.FreshReport }}
 	require.NoError(v, err) // want {{ $.FreshReport }}
+
+	// Valid – fresh variable reassigned to a real t before use.
+	w := &testing.T{}
+	w = t
+	assert.Equal(w, 0, result)
+	require.NoError(w, err)
 }
 
 // Case 3: assertion object created with outer t used inside t.Run subtest.
@@ -130,6 +136,14 @@ func {{ .CheckerName.AsTestName }}_Scope(t *testing.T) {
 			b := assert.New(t)
 			b.Equal(0, result)
 		})
+	})
+
+	// Rebound to outer t (not the callback's t): still an error because the
+	// rebinding does not use the subtest's own t.
+	outerT := t
+	t.Run("rebind-wrong-t", func(t *testing.T) {
+		a = assert.New(outerT)
+		a.Equal(0, result) // want {{ QuoteReport (printf "%s: assertion object a was created with outer scope's testing.T" $.Checker) }}
 	})
 }
 

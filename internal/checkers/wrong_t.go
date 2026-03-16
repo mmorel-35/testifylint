@@ -110,46 +110,64 @@ func (checker WrongT) Check(pass *analysis.Pass, insp *inspector.Inspector) (dia
 
 		callbackBodyStart := callback.Body.Lbrace
 
+		// Obtain the types.Object for the callback's own *testing.T parameter so that
+		// we can verify rebindings actually use the subtest's t, not some other TestingT.
+		callbackTParam := testingTParamObj(pass, callback)
+
 		// Collect the earliest position where each outer-scope assertion object is
-		// rebound inside the callback via a plain `=` assignment to assert.New / require.New.
-		// E.g.:  a = assert.New(t)
+		// rebound inside the callback via a plain `=` assignment to assert.New / require.New,
+		// where the New call's first argument is the callback's own *testing.T parameter.
+		// E.g.:  a = assert.New(t)  — t is the callback's t, not an outer one.
 		// Calls on `a` that occur AFTER such a rebinding are suppressed to avoid false positives.
 		innerRebindings := make(map[types.Object]token.Pos)
-		ast.Inspect(callback.Body, func(n ast.Node) bool {
-			if _, isFuncLit := n.(*ast.FuncLit); isFuncLit {
-				return false
-			}
-			as, ok := n.(*ast.AssignStmt)
-			if !ok || as.Tok != token.ASSIGN {
+		if callbackTParam != nil {
+			ast.Inspect(callback.Body, func(n ast.Node) bool {
+				if _, isFuncLit := n.(*ast.FuncLit); isFuncLit {
+					return false
+				}
+				as, ok := n.(*ast.AssignStmt)
+				if !ok || as.Tok != token.ASSIGN {
+					return true
+				}
+				for i, rhs := range as.Rhs {
+					callExpr, ok := rhs.(*ast.CallExpr)
+					if !ok {
+						continue
+					}
+					cm := NewCallMeta(pass, callExpr)
+					if cm == nil || !cm.IsPkg || cm.Fn.Name != "New" {
+						continue
+					}
+					// Only suppress when assert.New is called with the callback's own t.
+					if len(cm.ArgsRaw) == 0 {
+						continue
+					}
+					argIdent, ok := cm.ArgsRaw[0].(*ast.Ident)
+					if !ok {
+						continue
+					}
+					if pass.TypesInfo.ObjectOf(argIdent) != callbackTParam {
+						continue
+					}
+					if i >= len(as.Lhs) {
+						continue
+					}
+					lhsID, ok := as.Lhs[i].(*ast.Ident)
+					if !ok {
+						continue
+					}
+					obj := pass.TypesInfo.ObjectOf(lhsID)
+					if obj == nil || !assertVars[obj] || obj.Pos() >= callbackBodyStart {
+						continue
+					}
+					// Record the earliest rebinding position for this object.
+					if existing, seen := innerRebindings[obj]; !seen || as.Pos() < existing {
+						innerRebindings[obj] = as.Pos()
+					}
+				}
 				return true
-			}
-			for i, rhs := range as.Rhs {
-				callExpr, ok := rhs.(*ast.CallExpr)
-				if !ok {
-					continue
-				}
-				cm := NewCallMeta(pass, callExpr)
-				if cm == nil || !cm.IsPkg || cm.Fn.Name != "New" {
-					continue
-				}
-				if i >= len(as.Lhs) {
-					continue
-				}
-				lhsID, ok := as.Lhs[i].(*ast.Ident)
-				if !ok {
-					continue
-				}
-				obj := pass.TypesInfo.ObjectOf(lhsID)
-				if obj == nil || !assertVars[obj] || obj.Pos() >= callbackBodyStart {
-					continue
-				}
-				// Record the earliest rebinding position for this object.
-				if existing, seen := innerRebindings[obj]; !seen || as.Pos() < existing {
-					innerRebindings[obj] = as.Pos()
-				}
-			}
-			return true
-		})
+			})
+		}
 
 		// Walk callback body looking for calls on assertion objects from outer scope.
 		// Don't recurse into nested function literals to avoid double-reporting –
@@ -193,28 +211,62 @@ func (checker WrongT) Check(pass *analysis.Pass, insp *inspector.Inspector) (dia
 
 // collectFreshTestingTVars collects all variables that are assigned from freshly created *testing.T.
 // E.g.: u := &testing.T{} or u := new(testing.T).
+// Variables that are subsequently reassigned (via =) to a non-fresh expression are excluded,
+// to avoid false positives for patterns like: u := &testing.T{}; u = t; assert.Equal(u, ...).
 func collectFreshTestingTVars(pass *analysis.Pass, insp *inspector.Inspector) map[types.Object]bool {
 	result := make(map[types.Object]bool)
 
 	insp.Preorder([]ast.Node{(*ast.AssignStmt)(nil)}, func(node ast.Node) {
 		as := node.(*ast.AssignStmt)
-		if as.Tok != token.DEFINE {
-			return
-		}
-		for i, rhs := range as.Rhs {
-			if !isFreshTestingTExpr(pass, rhs) {
-				continue
+		switch as.Tok {
+		case token.DEFINE:
+			for i, rhs := range as.Rhs {
+				if !isFreshTestingTExpr(pass, rhs) {
+					continue
+				}
+				if i >= len(as.Lhs) {
+					continue
+				}
+				id, ok := as.Lhs[i].(*ast.Ident)
+				if !ok {
+					continue
+				}
+				obj := pass.TypesInfo.ObjectOf(id)
+				if obj != nil {
+					result[obj] = true
+				}
 			}
-			if i >= len(as.Lhs) {
-				continue
+		case token.ASSIGN:
+			// If a variable from result is reassigned to a non-fresh expression, remove it
+			// to avoid false positives when the variable is later used with a valid TestingT.
+			// For multi-return assignments (a, b = f()), where LHS and RHS counts differ,
+			// we cannot determine per-element freshness, so conservatively remove all
+			// LHS variables that are in the fresh set.
+			if len(as.Lhs) != len(as.Rhs) {
+				for _, lhs := range as.Lhs {
+					id, ok := lhs.(*ast.Ident)
+					if !ok {
+						continue
+					}
+					obj := pass.TypesInfo.ObjectOf(id)
+					if obj != nil {
+						delete(result, obj)
+					}
+				}
+				return
 			}
-			id, ok := as.Lhs[i].(*ast.Ident)
-			if !ok {
-				continue
-			}
-			obj := pass.TypesInfo.ObjectOf(id)
-			if obj != nil {
-				result[obj] = true
+			for i, lhs := range as.Lhs {
+				id, ok := lhs.(*ast.Ident)
+				if !ok {
+					continue
+				}
+				obj := pass.TypesInfo.ObjectOf(id)
+				if obj == nil || !result[obj] {
+					continue
+				}
+				if !isFreshTestingTExpr(pass, as.Rhs[i]) {
+					delete(result, obj)
+				}
 			}
 		}
 	})
@@ -320,4 +372,23 @@ func isTestingTTypeExpr(pass *analysis.Pass, expr ast.Expr) bool {
 	}
 	pkg := obj.Pkg()
 	return pkg != nil && pkg.Path() == "testing"
+}
+
+// testingTParamObj returns the types.Object for the first *testing.T parameter of a function literal,
+// or nil if no such parameter exists.
+func testingTParamObj(pass *analysis.Pass, fl *ast.FuncLit) types.Object {
+	if fl.Type == nil || fl.Type.Params == nil {
+		return nil
+	}
+	for _, field := range fl.Type.Params.List {
+		if !implementsTestingT(pass, field.Type) {
+			continue
+		}
+		for _, name := range field.Names {
+			if obj := pass.TypesInfo.ObjectOf(name); obj != nil {
+				return obj
+			}
+		}
+	}
+	return nil
 }
