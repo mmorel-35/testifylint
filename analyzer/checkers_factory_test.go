@@ -138,7 +138,7 @@ func Test_newCheckers(t *testing.T) {
 					checkers.NewSuiteTHelper().Name(),
 				},
 			},
-			expRegular: replace(enabledByDefaultRegularCheckers, formatterWithoutEnabledOptions),
+			expRegular:  replace(enabledByDefaultRegularCheckers, formatterWithoutEnabledOptions),
 			expAdvanced: allAdvancedCheckers,
 		},
 		{
