@@ -54,8 +54,9 @@ func (checker GracefulTeardown) Check(pass *analysis.Pass, insp *inspector.Inspe
 			}
 			d := newDiagnostic(checker.Name(), call, gracefulTeardownReport, fixes...)
 			diagnostics = append(diagnostics, *d)
+			return false
 		}
-		return false
+		return true
 	})
 	return diagnostics
 }
