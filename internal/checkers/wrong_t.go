@@ -119,55 +119,7 @@ func (checker WrongT) Check(pass *analysis.Pass, insp *inspector.Inspector) (dia
 		// where the New call's first argument is the callback's own *testing.T parameter.
 		// E.g.:  a = assert.New(t)  — t is the callback's t, not an outer one.
 		// Calls on `a` that occur AFTER such a rebinding are suppressed to avoid false positives.
-		innerRebindings := make(map[types.Object]token.Pos)
-		if callbackTParam != nil {
-			ast.Inspect(callback.Body, func(n ast.Node) bool {
-				if _, isFuncLit := n.(*ast.FuncLit); isFuncLit {
-					return false
-				}
-				as, ok := n.(*ast.AssignStmt)
-				if !ok || as.Tok != token.ASSIGN {
-					return true
-				}
-				for i, rhs := range as.Rhs {
-					callExpr, ok := rhs.(*ast.CallExpr)
-					if !ok {
-						continue
-					}
-					cm := NewCallMeta(pass, callExpr)
-					if cm == nil || !cm.IsPkg || cm.Fn.Name != "New" {
-						continue
-					}
-					// Only suppress when assert.New is called with the callback's own t.
-					if len(cm.ArgsRaw) == 0 {
-						continue
-					}
-					argIdent, ok := cm.ArgsRaw[0].(*ast.Ident)
-					if !ok {
-						continue
-					}
-					if pass.TypesInfo.ObjectOf(argIdent) != callbackTParam {
-						continue
-					}
-					if i >= len(as.Lhs) {
-						continue
-					}
-					lhsID, ok := as.Lhs[i].(*ast.Ident)
-					if !ok {
-						continue
-					}
-					obj := pass.TypesInfo.ObjectOf(lhsID)
-					if obj == nil || !assertVars[obj] || obj.Pos() >= callbackBodyStart {
-						continue
-					}
-					// Record the earliest rebinding position for this object.
-					if existing, seen := innerRebindings[obj]; !seen || as.Pos() < existing {
-						innerRebindings[obj] = as.Pos()
-					}
-				}
-				return true
-			})
-		}
+		innerRebindings := collectInnerRebindings(pass, callback, callbackTParam, callbackBodyStart, assertVars)
 
 		// Walk callback body looking for calls on assertion objects from outer scope.
 		// Don't recurse into nested function literals to avoid double-reporting –
@@ -207,6 +159,69 @@ func (checker WrongT) Check(pass *analysis.Pass, insp *inspector.Inspector) (dia
 	})
 
 	return diagnostics
+}
+
+// collectInnerRebindings collects the earliest position where each outer-scope assertion object
+// is rebound inside the callback via a plain `=` assignment to assert.New / require.New,
+// where the New call's first argument is the callback's own *testing.T parameter.
+func collectInnerRebindings(
+	pass *analysis.Pass,
+	callback *ast.FuncLit,
+	callbackTParam types.Object,
+	callbackBodyStart token.Pos,
+	assertVars map[types.Object]bool,
+) map[types.Object]token.Pos {
+	result := make(map[types.Object]token.Pos)
+	if callbackTParam == nil {
+		return result
+	}
+	ast.Inspect(callback.Body, func(n ast.Node) bool {
+		if _, isFuncLit := n.(*ast.FuncLit); isFuncLit {
+			return false
+		}
+		as, ok := n.(*ast.AssignStmt)
+		if !ok || as.Tok != token.ASSIGN {
+			return true
+		}
+		for i, rhs := range as.Rhs {
+			callExpr, ok := rhs.(*ast.CallExpr)
+			if !ok {
+				continue
+			}
+			cm := NewCallMeta(pass, callExpr)
+			if cm == nil || !cm.IsPkg || cm.Fn.Name != "New" {
+				continue
+			}
+			// Only suppress when assert.New is called with the callback's own t.
+			if len(cm.ArgsRaw) == 0 {
+				continue
+			}
+			argIdent, ok := cm.ArgsRaw[0].(*ast.Ident)
+			if !ok {
+				continue
+			}
+			if pass.TypesInfo.ObjectOf(argIdent) != callbackTParam {
+				continue
+			}
+			if i >= len(as.Lhs) {
+				continue
+			}
+			lhsID, ok := as.Lhs[i].(*ast.Ident)
+			if !ok {
+				continue
+			}
+			obj := pass.TypesInfo.ObjectOf(lhsID)
+			if obj == nil || !assertVars[obj] || obj.Pos() >= callbackBodyStart {
+				continue
+			}
+			// Record the earliest rebinding position for this object.
+			if existing, seen := result[obj]; !seen || as.Pos() < existing {
+				result[obj] = as.Pos()
+			}
+		}
+		return true
+	})
+	return result
 }
 
 // collectFreshTestingTVars collects all variables that are assigned from freshly created *testing.T.
@@ -268,6 +283,7 @@ func collectFreshTestingTVars(pass *analysis.Pass, insp *inspector.Inspector) ma
 					delete(result, obj)
 				}
 			}
+		default:
 		}
 	})
 
