@@ -71,6 +71,7 @@ func Test_newCheckers(t *testing.T) {
 		checkers.NewSuiteMethodSignature(),
 		checkers.NewSuiteSubtestRun(),
 		checkers.NewSuiteTHelper(),
+		checkers.NewElementsMatch(),
 	}
 
 	formatterWithoutEnabledOptions := checkers.RegularChecker(checkers.NewFormatter().
