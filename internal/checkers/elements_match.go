@@ -44,7 +44,7 @@ func (checker ElementsMatch) Check(pass *analysis.Pass, insp *inspector.Inspecto
 }
 
 // checkPattern checks if three consecutive statements form the pattern:
-// slices.Sort(x), slices.Sort(y), assert.True(t, slices.Equal(x, y))
+// slices.Sort(x), slices.Sort(y), assert.True(t, slices.Equal(x, y)).
 func (checker ElementsMatch) checkPattern(
 	pass *analysis.Pass,
 	s0, s1, s2 ast.Stmt,
@@ -89,7 +89,7 @@ func (checker ElementsMatch) checkPattern(
 	eqYStr := analysisutil.NodeString(pass.Fset, eqY)
 
 	// The slices being sorted must be the same as those being compared.
-	if !((xStr == eqXStr && yStr == eqYStr) || (xStr == eqYStr && yStr == eqXStr)) {
+	if (xStr != eqXStr || yStr != eqYStr) && (xStr != eqYStr || yStr != eqXStr) {
 		return nil
 	}
 
@@ -145,7 +145,7 @@ func extractSlicesSortCallArg(pass *analysis.Pass, stmt ast.Stmt) (ast.Expr, boo
 
 // extractSlicesEqualArgs returns the two arguments of a slices.Equal call,
 // if the expression is such a call.
-func extractSlicesEqualArgs(pass *analysis.Pass, expr ast.Expr) (ast.Expr, ast.Expr, bool) {
+func extractSlicesEqualArgs(pass *analysis.Pass, expr ast.Expr) (x, y ast.Expr, found bool) {
 	callExpr, ok := expr.(*ast.CallExpr)
 	if !ok {
 		return nil, nil, false
