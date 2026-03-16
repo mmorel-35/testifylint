@@ -34,6 +34,10 @@ func TestElementsMatchChecker(t *testing.T) {
 		slices.Sort(a)
 		slices.Sort(b)
 		assert.Truef(t, slices.Equal(a, b), "elements should match %d and %d", len(a), len(b)) // want "elements-match: use assert\\.ElementsMatchf"
+
+		slices.Sort(a)
+		slices.Sort(b)
+		assert.True(t, slices.Equal(b, a)) // want "elements-match: use assert\\.ElementsMatch"
 	}
 
 	// Valid.

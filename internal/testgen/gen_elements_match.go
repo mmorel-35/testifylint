@@ -74,6 +74,10 @@ func {{ .CheckerName.AsTestName }}(t *testing.T) {
 		slices.Sort(a)
 		slices.Sort(b)
 		assert.Truef(t, slices.Equal(a, b), "elements should match %d and %d", len(a), len(b)) // want {{ $.AssertFReport }}
+
+		slices.Sort(a)
+		slices.Sort(b)
+		assert.True(t, slices.Equal(b, a)) // want {{ $.AssertReport }}
 	}
 
 	// Valid.
@@ -128,6 +132,8 @@ func {{ .CheckerName.AsTestName }}(t *testing.T) {
 		assert.ElementsMatch(t, a, b, "elements should match") // want {{ $.AssertReport }}
 
 		assert.ElementsMatchf(t, a, b, "elements should match %d and %d", len(a), len(b)) // want {{ $.AssertFReport }}
+
+		assert.ElementsMatch(t, b, a) // want {{ $.AssertReport }}
 	}
 
 	// Valid.

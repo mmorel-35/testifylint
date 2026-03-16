@@ -335,8 +335,8 @@ assert.True(t, slices.Equal(expected, result))
 assert.ElementsMatch(t, expected, result)
 ```
 
-**Enabled by default**: ❌
-**Autofix**: ✅
+**Autofix**: true. <br>
+**Enabled by default**: false. <br>
 **Reason**: Code simplification.
 
 ---

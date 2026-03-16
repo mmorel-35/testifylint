@@ -24,6 +24,8 @@ func TestElementsMatchChecker(t *testing.T) {
 		assert.ElementsMatch(t, a, b, "elements should match") // want "elements-match: use assert\\.ElementsMatch"
 
 		assert.ElementsMatchf(t, a, b, "elements should match %d and %d", len(a), len(b)) // want "elements-match: use assert\\.ElementsMatchf"
+
+		assert.ElementsMatch(t, b, a) // want "elements-match: use assert\\.ElementsMatch"
 	}
 
 	// Valid.

@@ -106,11 +106,18 @@ func (checker ElementsMatch) checkPattern(
 		NewText: formatAsCallArgs(pass, eqX, eqY),
 	}
 	fix := newSuggestedFuncReplacement(testifyCall, "ElementsMatch", argReplaceEdit)
-	// Prepend the sort-removal edit (lower position than the function-name edit).
-	// NOTE: This range covers content between s1.End() and s2.Pos(); any comments
-	// placed there would also be removed.
+	// Prepend two separate sort-removal edits (one per statement) so that
+	// any comments or blank lines between the sort calls and the assertion are preserved.
+	file := pass.Fset.File(s0.Pos())
+	s0LineStart := file.LineStart(file.Line(s0.Pos()))
+	s1LineStart := file.LineStart(file.Line(s1.Pos()))
+	s1LineEnd := s2.Pos() // default: everything up to assertion
+	if nextLine := file.Line(s1.End()) + 1; nextLine <= file.LineCount() {
+		s1LineEnd = file.LineStart(nextLine)
+	}
 	fix.TextEdits = append([]analysis.TextEdit{
-		{Pos: s0.Pos(), End: s2.Pos(), NewText: []byte{}},
+		{Pos: s0LineStart, End: s1LineStart, NewText: []byte{}},
+		{Pos: s1LineStart, End: s1LineEnd, NewText: []byte{}},
 	}, fix.TextEdits...)
 
 	return newDiagnostic(checker.Name(), testifyCall, msg, fix)
