@@ -6,6 +6,7 @@ import (
 	"path"
 	"slices"
 	"strconv"
+	"strings"
 )
 
 // pkgBaseName returns the default package name for the given import path.
@@ -13,12 +14,15 @@ import (
 func pkgBaseName(importPath string) string {
 	base := path.Base(importPath)
 	// If the last element looks like a major version tag (v2, v3, ...), use the preceding element.
-	if len(base) > 1 && base[0] == 'v' {
-		if _, err := strconv.Atoi(base[1:]); err == nil {
-			base = path.Base(path.Dir(importPath))
-		}
+	after, found := strings.CutPrefix(base, "v")
+	if !found {
+		return base
 	}
-	return base
+	_, err := strconv.Atoi(after)
+	if  err != nil {
+		return base
+	}
+	return path.Base(path.Dir(importPath))
 }
 
 // Imports tells if the file imports at least one of the packages.
