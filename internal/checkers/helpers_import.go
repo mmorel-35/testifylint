@@ -63,7 +63,7 @@ func AddImportFix(files []*ast.File, pos token.Pos, pkgPath string) (name string
 
 	// Package is not imported — compute a non-conflicting local name and insert.
 	preferred := analysisutil.PkgBaseName(pkgPath)
-	localName = freshImportLocalName(file, preferred, pkgPath)
+	localName = FreshImportLocalName(file, preferred, pkgPath)
 	if localName == "" {
 		return "", nil, false
 	}
@@ -84,16 +84,16 @@ func isStdlibPath(pkgPath string) bool {
 	return !strings.Contains(firstSegment, ".")
 }
 
-// freshImportLocalName returns a non-conflicting local name for an import of pkgPath.
+// FreshImportLocalName returns a non-conflicting local name for an import of pkgPath.
 // It starts with preferred and tries preferred1, preferred2, …, up to maxImportNameRetries.
 // Returns "" if no suitable name is found.
 //
 // The check covers both existing import local names and package-level (file-scope)
 // identifiers, because imported package names and top-level declarations share the
 // same file namespace.
-func freshImportLocalName(file *ast.File, preferred, pkgPath string) string {
+func FreshImportLocalName(file *ast.File, preferred, pkgPath string) string {
 	used := usedImportLocalNames(file, pkgPath)
-	topLevel := fileTopLevelNames(file)
+	topLevel := FileTopLevelNames(file)
 
 	isAvailable := func(name string) bool {
 		_, importTaken := used[name]
@@ -131,10 +131,10 @@ func usedImportLocalNames(file *ast.File, excludePath string) map[string]struct{
 	return names
 }
 
-// fileTopLevelNames returns the set of names declared at file (package) scope:
+// FileTopLevelNames returns the set of names declared at file (package) scope:
 // function names, variable names, constant names, and type names.
 // These share the file-level namespace with imported package qualifiers.
-func fileTopLevelNames(file *ast.File) map[string]struct{} {
+func FileTopLevelNames(file *ast.File) map[string]struct{} {
 	names := make(map[string]struct{})
 	for _, decl := range file.Decls {
 		switch d := decl.(type) {
