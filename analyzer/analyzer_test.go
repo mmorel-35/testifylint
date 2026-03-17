@@ -180,8 +180,12 @@ func TestTestifyLint_NotDefaultCases(t *testing.T) {
 			},
 		},
 		{
-			dir:   "http-const-no-import",
-			flags: map[string]string{"disable-all": "true", "enable": checkers.NewHTTPConst().Name()},
+			dir:   "http-method-no-import",
+			flags: map[string]string{"disable-all": "true", "enable": checkers.NewHTTPMethod().Name()},
+		},
+		{
+			dir:   "http-status-code-no-import",
+			flags: map[string]string{"disable-all": "true", "enable": checkers.NewHTTPStatusCode().Name()},
 		},
 	}
 

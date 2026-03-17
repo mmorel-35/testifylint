@@ -45,17 +45,17 @@ func AddImportFix(files []*ast.File, pos token.Pos, pkgPath string) (name string
 		if err != nil || p != pkgPath {
 			continue
 		}
-		if imp.Name != nil {
-			switch imp.Name.Name {
-			case ".":
-				return "", nil, true // dot-import: symbols accessible without qualifier
-			case "_":
-				return "", nil, false // blank import: package not accessible
-			default:
-				return imp.Name.Name, nil, true // aliased import
-			}
+		if imp.Name == nil {
+			return importBaseName(pkgPath), nil, true // regular import
 		}
-		return importBaseName(pkgPath), nil, true // regular import
+		switch imp.Name.Name {
+		case ".":
+			return "", nil, true // dot-import: symbols accessible without qualifier
+		case "_":
+			return "", nil, false // blank import: package not accessible
+		default:
+			return imp.Name.Name, nil, true // aliased import
+		}
 	}
 
 	// Package is not imported — compute a non-conflicting local name and insert.
@@ -77,22 +77,23 @@ func AddImportFix(files []*ast.File, pos token.Pos, pkgPath string) (name string
 // It handles versioned module paths (e.g., "example.com/pkg/v2" → "pkg").
 func importBaseName(importPath string) string {
 	base := path.Base(importPath)
-	if len(base) > 1 && base[0] == 'v' {
-		if _, err := strconv.Atoi(base[1:]); err == nil {
-			base = path.Base(path.Dir(importPath))
-		}
+	after, found := strings.CutPrefix(base, "v")
+	if !found {
+		return base
 	}
-	return base
+	_, err := strconv.Atoi(after)
+	if err != nil {
+		return base
+	}
+	return path.Base(path.Dir(importPath))
 }
 
 // isStdlibPath reports whether pkgPath belongs to the Go standard library.
 // A standard library package has no dot in its first path segment.
 func isStdlibPath(pkgPath string) bool {
-	slash := strings.IndexByte(pkgPath, '/')
-	if slash < 0 {
-		slash = len(pkgPath)
-	}
-	return !strings.Contains(pkgPath[:slash], ".")
+	// Split into at most 2 parts at the first slash
+	firstSegment, _, _ := strings.Cut(pkgPath, "/")
+	return !strings.Contains(firstSegment, ".")
 }
 
 // freshImportLocalName returns a non-conflicting local name for an import of pkgPath.
@@ -133,12 +134,10 @@ func usedImportLocalNames(file *ast.File, excludePath string) map[string]struct{
 		if err != nil || p == excludePath {
 			continue
 		}
-		if imp.Name != nil {
-			if imp.Name.Name != "_" && imp.Name.Name != "." {
-				names[imp.Name.Name] = struct{}{}
-			}
-		} else {
+		if imp.Name == nil {
 			names[importBaseName(p)] = struct{}{}
+		} else if imp.Name.Name != "_" && imp.Name.Name != "." {
+			names[imp.Name.Name] = struct{}{}
 		}
 	}
 	return names

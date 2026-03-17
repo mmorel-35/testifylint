@@ -7,13 +7,13 @@ import (
 	"github.com/Antonboom/testifylint/internal/checkers"
 )
 
-type HTTPConstTestsGenerator struct{}
+type HTTPMethodTestsGenerator struct{}
 
-func (HTTPConstTestsGenerator) Checker() checkers.Checker {
-	return checkers.NewHTTPConst()
+func (HTTPMethodTestsGenerator) Checker() checkers.Checker {
+	return checkers.NewHTTPMethod()
 }
 
-func (g HTTPConstTestsGenerator) TemplateData() any {
+func (g HTTPMethodTestsGenerator) TemplateData() any {
 	checker := g.Checker().Name()
 
 	return struct {
@@ -24,58 +24,58 @@ func (g HTTPConstTestsGenerator) TemplateData() any {
 	}{
 		CheckerName: CheckerName(checker),
 		InvalidAssertions: []Assertion{
-			// HTTPStatusCode: method + status code
+			// HTTPMethod: method only
 			{
 				Fn:            "HTTPStatusCode",
-				Argsf:         `httpOK, "get", "/index", nil, 200`,
-				ReportMsgf:    checker + ": use net/http constants instead of value",
+				Argsf:         `httpOK, "get", "/index", nil, http.StatusOK`,
+				ReportMsgf:    checker + ": use net/http constant instead of string literal",
 				ProposedArgsf: `httpOK, http.MethodGet, "/index", nil, http.StatusOK`,
 			},
 			{
 				Fn:            "HTTPStatusCode",
-				Argsf:         `httpOK, "Get", "/index", nil, 200`,
-				ReportMsgf:    checker + ": use net/http constants instead of value",
+				Argsf:         `httpOK, "Get", "/index", nil, http.StatusOK`,
+				ReportMsgf:    checker + ": use net/http constant instead of string literal",
 				ProposedArgsf: `httpOK, http.MethodGet, "/index", nil, http.StatusOK`,
 			},
 			{
 				Fn:            "HTTPStatusCode",
-				Argsf:         `httpOK, "GET", "/index", nil, 200`,
-				ReportMsgf:    checker + ": use net/http constants instead of value",
+				Argsf:         `httpOK, "GET", "/index", nil, http.StatusOK`,
+				ReportMsgf:    checker + ": use net/http constant instead of string literal",
 				ProposedArgsf: `httpOK, http.MethodGet, "/index", nil, http.StatusOK`,
 			},
-			// HTTPBodyContains: method-only
+			// HTTPBodyContains: method only
 			{
 				Fn:            "HTTPBodyContains",
 				Argsf:         `httpHelloName, "GET", "/", url.Values{"name": []string{"World"}}, "Hello, World!"`,
-				ReportMsgf:    checker + ": use net/http constants instead of value",
+				ReportMsgf:    checker + ": use net/http constant instead of string literal",
 				ProposedArgsf: `httpHelloName, http.MethodGet, "/", url.Values{"name": []string{"World"}}, "Hello, World!"`,
 			},
-			// HTTPBodyNotContains: method-only
+			// HTTPBodyNotContains: method only
 			{
 				Fn:            "HTTPBodyNotContains",
 				Argsf:         `httpHelloName, "POST", "/", nil, "Goodbye"`,
-				ReportMsgf:    checker + ": use net/http constants instead of value",
+				ReportMsgf:    checker + ": use net/http constant instead of string literal",
 				ProposedArgsf: `httpHelloName, http.MethodPost, "/", nil, "Goodbye"`,
 			},
-			// HTTPError: method-only
+			// HTTPError: method only
 			{
 				Fn:            "HTTPError",
 				Argsf:         `httpError, "DELETE", "/resource", nil`,
-				ReportMsgf:    checker + ": use net/http constants instead of value",
+				ReportMsgf:    checker + ": use net/http constant instead of string literal",
 				ProposedArgsf: `httpError, http.MethodDelete, "/resource", nil`,
 			},
-			// HTTPRedirect: method-only
+			// HTTPRedirect: method only
 			{
 				Fn:            "HTTPRedirect",
 				Argsf:         `httpRedirect, "PUT", "/old", nil`,
-				ReportMsgf:    checker + ": use net/http constants instead of value",
+				ReportMsgf:    checker + ": use net/http constant instead of string literal",
 				ProposedArgsf: `httpRedirect, http.MethodPut, "/old", nil`,
 			},
-			// HTTPSuccess: method-only
+			// HTTPSuccess: method only
 			{
 				Fn:            "HTTPSuccess",
 				Argsf:         `httpOK, "PATCH", "/update", nil`,
-				ReportMsgf:    checker + ": use net/http constants instead of value",
+				ReportMsgf:    checker + ": use net/http constant instead of string literal",
 				ProposedArgsf: `httpOK, http.MethodPatch, "/update", nil`,
 			},
 		},
@@ -88,26 +88,26 @@ func (g HTTPConstTestsGenerator) TemplateData() any {
 			{Fn: "HTTPSuccess", Argsf: `httpOK, http.MethodPatch, "/update", nil`},
 		},
 		IgnoredAssertions: []Assertion{
-			// Uncommon HTTP methods or HTTP status codes should be ignored.
-			{Fn: "HTTPStatusCode", Argsf: `httpOK, "FOO", "/index", nil, 999`},
+			// Uncommon HTTP methods should be ignored.
+			{Fn: "HTTPStatusCode", Argsf: `httpOK, "FOO", "/index", nil, http.StatusOK`},
 			{Fn: "HTTPBodyContains", Argsf: `httpHelloName, "FOO", "/", url.Values{"name": []string{"World"}}, "Hello, World!"`},
 		},
 	}
 }
 
-func (HTTPConstTestsGenerator) ErroredTemplate() Executor {
-	return template.Must(template.New("HTTPConstTestsGenerator.ErroredTemplate").
+func (HTTPMethodTestsGenerator) ErroredTemplate() Executor {
+	return template.Must(template.New("HTTPMethodTestsGenerator.ErroredTemplate").
 		Funcs(fm).
-		Parse(httpConstTestTmpl))
+		Parse(httpMethodTestTmpl))
 }
 
-func (HTTPConstTestsGenerator) GoldenTemplate() Executor {
-	return template.Must(template.New("HTTPConstTestsGenerator.GoldenTemplate").
+func (HTTPMethodTestsGenerator) GoldenTemplate() Executor {
+	return template.Must(template.New("HTTPMethodTestsGenerator.GoldenTemplate").
 		Funcs(fm).
-		Parse(strings.ReplaceAll(httpConstTestTmpl, "NewAssertionExpander", "NewAssertionExpander.AsGolden")))
+		Parse(strings.ReplaceAll(httpMethodTestTmpl, "NewAssertionExpander", "NewAssertionExpander.AsGolden")))
 }
 
-const httpConstTestTmpl = header + `
+const httpMethodTestTmpl = header + `
 
 package {{ .CheckerName.AsPkgName }}
 

@@ -19,7 +19,7 @@ func pkgBaseName(importPath string) string {
 		return base
 	}
 	_, err := strconv.Atoi(after)
-	if  err != nil {
+	if err != nil {
 		return base
 	}
 	return path.Base(path.Dir(importPath))
