@@ -14,8 +14,8 @@ import (
 type HTTPStatusCode struct{}
 
 // NewHTTPStatusCode constructs HTTPStatusCode checker.
-func NewHTTPStatusCode() HTTPStatusCode  { return HTTPStatusCode{} }
-func (HTTPStatusCode) Name() string      { return "http-status-code" }
+func NewHTTPStatusCode() HTTPStatusCode { return HTTPStatusCode{} }
+func (HTTPStatusCode) Name() string     { return "http-status-code" }
 
 func (checker HTTPStatusCode) Check(pass *analysis.Pass, call *CallMeta) *analysis.Diagnostic {
 	if call.Fn.NameFTrimmed != "HTTPStatusCode" {

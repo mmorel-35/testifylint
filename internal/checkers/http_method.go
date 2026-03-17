@@ -16,8 +16,8 @@ import (
 type HTTPMethod struct{}
 
 // NewHTTPMethod constructs HTTPMethod checker.
-func NewHTTPMethod() HTTPMethod  { return HTTPMethod{} }
-func (HTTPMethod) Name() string  { return "http-method" }
+func NewHTTPMethod() HTTPMethod { return HTTPMethod{} }
+func (HTTPMethod) Name() string { return "http-method" }
 
 func (checker HTTPMethod) Check(pass *analysis.Pass, call *CallMeta) *analysis.Diagnostic {
 	switch call.Fn.NameFTrimmed {
