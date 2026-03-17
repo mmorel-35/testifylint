@@ -9,9 +9,9 @@ import (
 	"strings"
 )
 
-// pkgBaseName returns the default package name for the given import path.
+// PkgBaseName returns the default package name for the given import path.
 // It handles versioned module paths (e.g., "example.com/pkg/v2" → "pkg").
-func pkgBaseName(importPath string) string {
+func PkgBaseName(importPath string) string {
 	base := path.Base(importPath)
 	// If the last element looks like a major version tag (v2, v3, ...), use the preceding element.
 	after, found := strings.CutPrefix(base, "v")
@@ -70,7 +70,7 @@ func LocalPkgName(files []*ast.File, pos token.Pos, pkgPath string) (string, boo
 				}
 				return imp.Name.Name, true
 			}
-			return pkgBaseName(pkgPath), true
+			return PkgBaseName(pkgPath), true
 		}
 		break
 	}
