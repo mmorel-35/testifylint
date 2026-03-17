@@ -101,7 +101,8 @@ https://golangci-lint.run/docs/linters/configuration/#testifylint
 | [float-compare](#float-compare)                     | ✅                  | ❌       |
 | [formatter](#formatter)                             | ✅                  | 🤏      |
 | [go-require](#go-require)                           | ✅                  | ❌       |
-| [http-const](#http-const)                           | ✅                  | ✅       |
+| [http-method](#http-method)                         | ✅                  | ✅       |
+| [http-status-code](#http-status-code)               | ✅                  | ✅       |
 | [len](#len)                                         | ✅                  | ✅       |
 | [negative-positive](#negative-positive)             | ✅                  | ✅       |
 | [nil-compare](#nil-compare)                         | ✅                  | ✅       |
@@ -815,11 +816,11 @@ P.S. Look at [testify's issue](https://github.com/stretchr/testify/issues/772), 
 
 ---
 
-### http-const
+### http-method
 
 ```go
 ❌
-assert.HTTPStatusCode(t, handler, "GET", "/index", nil, 200)
+assert.HTTPStatusCode(t, handler, "GET", "/index", nil, http.StatusOK)
 assert.HTTPBodyContains(t, handler, "GET", "/index", nil, "counter")
 
 ✅
@@ -829,7 +830,23 @@ assert.HTTPBodyContains(t, handler, http.MethodGet, "/index", nil, "counter")
 
 **Autofix**: true. <br>
 **Enabled by default**: true. <br>
-**Reason**: Cleaner code and meaningful constants instead of magical numbers/identifiers. This checker is similar to the [usestdlibvars](https://golangci-lint.run/usage/linters/#usestdlibvars) linter. <br>
+**Reason**: Cleaner code and meaningful constants instead of string literals. This checker is similar to the [usestdlibvars](https://golangci-lint.run/usage/linters/#usestdlibvars) linter. <br>
+
+---
+
+### http-status-code
+
+```go
+❌
+assert.HTTPStatusCode(t, handler, http.MethodGet, "/index", nil, 200)
+
+✅
+assert.HTTPStatusCode(t, handler, http.MethodGet, "/index", nil, http.StatusOK)
+```
+
+**Autofix**: true. <br>
+**Enabled by default**: true. <br>
+**Reason**: Cleaner code and meaningful constants instead of magical numbers. This checker is similar to the [usestdlibvars](https://golangci-lint.run/usage/linters/#usestdlibvars) linter. <br>
 
 ---
 

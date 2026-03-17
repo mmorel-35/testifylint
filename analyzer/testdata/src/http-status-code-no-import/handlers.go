@@ -1,4 +1,4 @@
-package httpconstnoimport
+package httpstatuscodenoimport
 
 import "net/http"
 
