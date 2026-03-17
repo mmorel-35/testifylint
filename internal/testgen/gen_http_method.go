@@ -24,7 +24,7 @@ func (g HTTPMethodTestsGenerator) TemplateData() any {
 	}{
 		CheckerName: CheckerName(checker),
 		InvalidAssertions: []Assertion{
-			// HTTPStatusCode: method only
+			// HTTPMethod: method only
 			{
 				Fn:            "HTTPStatusCode",
 				Argsf:         `httpOK, "get", "/index", nil, http.StatusOK`,
@@ -43,35 +43,35 @@ func (g HTTPMethodTestsGenerator) TemplateData() any {
 				ReportMsgf:    checker + ": use net/http constant instead of string literal",
 				ProposedArgsf: `httpOK, http.MethodGet, "/index", nil, http.StatusOK`,
 			},
-			// HTTPBodyContains: method-only
+			// HTTPBodyContains: method only
 			{
 				Fn:            "HTTPBodyContains",
 				Argsf:         `httpHelloName, "GET", "/", url.Values{"name": []string{"World"}}, "Hello, World!"`,
 				ReportMsgf:    checker + ": use net/http constant instead of string literal",
 				ProposedArgsf: `httpHelloName, http.MethodGet, "/", url.Values{"name": []string{"World"}}, "Hello, World!"`,
 			},
-			// HTTPBodyNotContains: method-only
+			// HTTPBodyNotContains: method only
 			{
 				Fn:            "HTTPBodyNotContains",
 				Argsf:         `httpHelloName, "POST", "/", nil, "Goodbye"`,
 				ReportMsgf:    checker + ": use net/http constant instead of string literal",
 				ProposedArgsf: `httpHelloName, http.MethodPost, "/", nil, "Goodbye"`,
 			},
-			// HTTPError: method-only
+			// HTTPError: method only
 			{
 				Fn:            "HTTPError",
 				Argsf:         `httpError, "DELETE", "/resource", nil`,
 				ReportMsgf:    checker + ": use net/http constant instead of string literal",
 				ProposedArgsf: `httpError, http.MethodDelete, "/resource", nil`,
 			},
-			// HTTPRedirect: method-only
+			// HTTPRedirect: method only
 			{
 				Fn:            "HTTPRedirect",
 				Argsf:         `httpRedirect, "PUT", "/old", nil`,
 				ReportMsgf:    checker + ": use net/http constant instead of string literal",
 				ProposedArgsf: `httpRedirect, http.MethodPut, "/old", nil`,
 			},
-			// HTTPSuccess: method-only
+			// HTTPSuccess: method only
 			{
 				Fn:            "HTTPSuccess",
 				Argsf:         `httpOK, "PATCH", "/update", nil`,
