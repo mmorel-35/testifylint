@@ -4,11 +4,12 @@ import (
 	"fmt"
 	"go/ast"
 	"go/token"
-	"path"
 	"strconv"
 	"strings"
 
 	"golang.org/x/tools/go/analysis"
+
+	"github.com/Antonboom/testifylint/internal/analysisutil"
 )
 
 // maxImportNameRetries is the number of numeric suffixes tried when finding a
@@ -27,7 +28,15 @@ const maxImportNameRetries = 9
 //   - (name, edit, true)  — pkgPath is absent and a non-conflicting import can be inserted
 //   - ("",   nil,  false) — pkgPath is blank-imported or all candidate names are taken
 func AddImportFix(files []*ast.File, pos token.Pos, pkgPath string) (name string, edit *analysis.TextEdit, ok bool) {
-	// Find the file containing pos.
+	// Use LocalPkgName to check whether pkgPath is already imported in this file.
+	localName, imported := analysisutil.LocalPkgName(files, pos, pkgPath)
+	if imported {
+		return localName, nil, true
+	}
+
+	// LocalPkgName returns ("", false) for both a blank import and a missing import.
+	// Find the file containing pos so we can distinguish the two cases and, if the
+	// package is absent, build the TextEdit to insert it.
 	var file *ast.File
 	for _, f := range files {
 		if f.Pos() <= pos && pos <= f.End() {
@@ -39,28 +48,22 @@ func AddImportFix(files []*ast.File, pos token.Pos, pkgPath string) (name string
 		return "", nil, false
 	}
 
-	// Check whether pkgPath is already imported in this file.
+	// If the package appears with a blank name it is not accessible — bail out.
 	for _, imp := range file.Imports {
 		p, err := strconv.Unquote(imp.Path.Value)
 		if err != nil || p != pkgPath {
 			continue
 		}
-		if imp.Name == nil {
-			return importBaseName(pkgPath), nil, true // regular import
-		}
-		switch imp.Name.Name {
-		case ".":
-			return "", nil, true // dot-import: symbols accessible without qualifier
-		case "_":
+		// LocalPkgName already returned true for dot/regular/aliased imports;
+		// only a blank import can reach this point.
+		if imp.Name != nil && imp.Name.Name == "_" {
 			return "", nil, false // blank import: package not accessible
-		default:
-			return imp.Name.Name, nil, true // aliased import
 		}
 	}
 
 	// Package is not imported — compute a non-conflicting local name and insert.
-	preferred := importBaseName(pkgPath)
-	localName := freshImportLocalName(file, preferred, pkgPath)
+	preferred := analysisutil.PkgBaseName(pkgPath)
+	localName = freshImportLocalName(file, preferred, pkgPath)
 	if localName == "" {
 		return "", nil, false
 	}
@@ -71,21 +74,6 @@ func AddImportFix(files []*ast.File, pos token.Pos, pkgPath string) (name string
 	}
 	textEdit := importInsertEdit(file, pkgPath, specText)
 	return localName, &textEdit, true
-}
-
-// importBaseName returns the default local name for the given import path.
-// It handles versioned module paths (e.g., "example.com/pkg/v2" → "pkg").
-func importBaseName(importPath string) string {
-	base := path.Base(importPath)
-	after, found := strings.CutPrefix(base, "v")
-	if !found {
-		return base
-	}
-	_, err := strconv.Atoi(after)
-	if err != nil {
-		return base
-	}
-	return path.Base(path.Dir(importPath))
 }
 
 // isStdlibPath reports whether pkgPath belongs to the Go standard library.
@@ -135,7 +123,7 @@ func usedImportLocalNames(file *ast.File, excludePath string) map[string]struct{
 			continue
 		}
 		if imp.Name == nil {
-			names[importBaseName(p)] = struct{}{}
+			names[analysisutil.PkgBaseName(p)] = struct{}{}
 		} else if imp.Name.Name != "_" && imp.Name.Name != "." {
 			names[imp.Name.Name] = struct{}{}
 		}
