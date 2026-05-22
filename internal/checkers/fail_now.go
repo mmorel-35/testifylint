@@ -3,6 +3,7 @@ package checkers
 import (
 	"fmt"
 	"go/ast"
+	"go/token"
 	"go/types"
 
 	"golang.org/x/tools/go/analysis"
@@ -215,8 +216,76 @@ func typeHasMethod(pass *analysis.Pass, expr ast.Expr, methodName string) bool {
 }
 
 func typeSupportsFailNowReplacements(pass *analysis.Pass, expr ast.Expr) bool {
-	return typeHasMethod(pass, expr, "Error") &&
-		typeHasMethod(pass, expr, "Errorf") &&
-		typeHasMethod(pass, expr, "Fatal") &&
-		typeHasMethod(pass, expr, "Fatalf")
+	if expr == nil {
+		return true
+	}
+
+	t := pass.TypesInfo.TypeOf(expr)
+	if t == nil {
+		return false
+	}
+
+	iface := failNowReplacementIface()
+	if types.Implements(t, iface) {
+		return true
+	}
+
+	// Keep supporting addressable values whose pointer method set satisfies interface.
+	_, isPtr := t.(*types.Pointer)
+	return !isPtr && types.Implements(types.NewPointer(t), iface)
+}
+
+func failNowReplacementIface() *types.Interface {
+	anyIface := types.NewInterfaceType(nil, nil)
+	anyIface.Complete()
+	variadicAny := types.NewSlice(anyIface)
+
+	argsParam := func() *types.Var {
+		return types.NewVar(token.NoPos, nil, "args", variadicAny)
+	}
+
+	errorMethod := types.NewFunc(token.NoPos, nil, "Error", types.NewSignatureType(
+		nil,
+		nil,
+		nil,
+		types.NewTuple(argsParam()),
+		nil,
+		true,
+	))
+	errorfMethod := types.NewFunc(token.NoPos, nil, "Errorf", types.NewSignatureType(
+		nil,
+		nil,
+		nil,
+		types.NewTuple(
+			types.NewVar(token.NoPos, nil, "format", types.Typ[types.String]),
+			argsParam(),
+		),
+		nil,
+		true,
+	))
+	fatalMethod := types.NewFunc(token.NoPos, nil, "Fatal", types.NewSignatureType(
+		nil,
+		nil,
+		nil,
+		types.NewTuple(argsParam()),
+		nil,
+		true,
+	))
+	fatalfMethod := types.NewFunc(token.NoPos, nil, "Fatalf", types.NewSignatureType(
+		nil,
+		nil,
+		nil,
+		types.NewTuple(
+			types.NewVar(token.NoPos, nil, "format", types.Typ[types.String]),
+			argsParam(),
+		),
+		nil,
+		true,
+	))
+
+	iface := types.NewInterfaceType([]*types.Func{
+		errorMethod, errorfMethod, fatalMethod, fatalfMethod,
+	}, nil)
+	iface.Complete()
+	return iface
 }

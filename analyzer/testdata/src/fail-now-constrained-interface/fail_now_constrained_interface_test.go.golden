@@ -16,10 +16,18 @@ type requireOnlyTestingT interface {
 	FailNow()
 }
 
+type assertWrongReplacementSignaturesT interface {
+	Errorf(format string, args ...interface{})
+	Error(args ...interface{}) int
+	Fatal(args ...interface{}) int
+	Fatalf(format string, args ...interface{}) int
+}
+
 func TestFailNowConstrainedInterface(t *testing.T) {
 	var (
-		assertT  assertOnlyTestingT
-		requireT requireOnlyTestingT
+		assertT            assertOnlyTestingT
+		requireT           requireOnlyTestingT
+		assertWrongMethods assertWrongReplacementSignaturesT
 	)
 
 	// Invalid (full *testing.T supports replacements).
@@ -41,5 +49,13 @@ func TestFailNowConstrainedInterface(t *testing.T) {
 		require.Failf(requireT, "failure", "fmt %s", "arg")
 		require.FailNow(requireT, "failure")
 		require.FailNowf(requireT, "failure", "fmt %s", "arg")
+	}
+
+	// Valid (ignored): replacement method names can exist with incompatible signatures.
+	{
+		assert.Fail(assertWrongMethods, "failure")
+		assert.Failf(assertWrongMethods, "failure", "fmt %s", "arg")
+		assert.FailNow(assertWrongMethods, "failure")
+		assert.FailNowf(assertWrongMethods, "failure", "fmt %s", "arg")
 	}
 }
