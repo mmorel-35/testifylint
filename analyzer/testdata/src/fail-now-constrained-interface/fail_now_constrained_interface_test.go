@@ -25,9 +25,9 @@ type assertWrongReplacementSignaturesT interface {
 
 type assertPointerOnlyReplacementsT struct{}
 
-func (assertPointerOnlyReplacementsT) Errorf(format string, args ...interface{}) {}
-func (*assertPointerOnlyReplacementsT) Error(args ...interface{})               {}
-func (*assertPointerOnlyReplacementsT) Fatal(args ...interface{})               {}
+func (assertPointerOnlyReplacementsT) Errorf(format string, args ...interface{})  {}
+func (*assertPointerOnlyReplacementsT) Error(args ...interface{})                 {}
+func (*assertPointerOnlyReplacementsT) Fatal(args ...interface{})                 {}
 func (*assertPointerOnlyReplacementsT) Fatalf(format string, args ...interface{}) {}
 
 func newAssertPointerOnlyReplacementsT() assertPointerOnlyReplacementsT {
