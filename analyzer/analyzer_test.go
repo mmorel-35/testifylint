@@ -127,6 +127,10 @@ func TestTestifyLint_NotDefaultCases(t *testing.T) {
 			},
 		},
 		{
+			dir:   "fail-now-constrained-interface",
+			flags: map[string]string{"disable-all": "true", "enable": checkers.NewFailNow().Name()},
+		},
+		{
 			dir: "ginkgo",
 		},
 		{

@@ -55,6 +55,10 @@ func (checker FailNow) Check(pass *analysis.Pass, insp *inspector.Inspector) (di
 			return true
 		}
 
+		if !checker.shouldReport(pass, call, proposedFn) {
+			return true
+		}
+
 		// Skip non-pkg non-suite method calls (e.g., assertObj.Fail(...)) where there is
 		// no accessible testing.T variable to suggest in the message.
 		if !call.IsPkg && !implementsTestifySuite(pass, call.Selector.X) {
@@ -87,6 +91,24 @@ func isCallResultDiscarded(stack []ast.Node) bool {
 	return false
 }
 
+func (checker FailNow) shouldReport(pass *analysis.Pass, call *CallMeta, proposedFn string) bool {
+	_, callerExpr, ok := checker.callerVar(pass, call)
+	if !ok {
+		return false
+	}
+
+	if !typeSupportsFailNowReplacements(pass, callerExpr) {
+		return false
+	}
+
+	methodName, _, ok := checker.replacement(call, proposedFn)
+	if !ok {
+		return false
+	}
+
+	return typeHasMethod(pass, callerExpr, methodName)
+}
+
 // fix builds a SuggestedFix replacing the testify call with a standard testing.T method call.
 //
 // Argument mapping:
@@ -112,31 +134,9 @@ func (checker FailNow) fix(pass *analysis.Pass, call *CallMeta, proposedFn strin
 		return nil
 	}
 
-	var newArgs []ast.Expr
-	fn := proposedFn
-
-	if call.Fn.IsFmt {
-		// Failf(t, failureMessage, format, args...) → callerVar.Errorf(format, args...)
-		if len(call.Args) < 2 {
-			return nil
-		}
-		fn += "f"
-		newArgs = call.Args[1:]
-	} else {
-		switch len(call.Args) {
-		case 0:
-			return nil
-		case 1:
-			// Fail(t, failureMessage) → callerVar.Error(failureMessage)
-			newArgs = call.Args
-		case 2:
-			// Fail(t, failureMessage, msg) → callerVar.Error(msg)
-			newArgs = call.Args[1:]
-		default:
-			// Fail(t, failureMessage, format, args...) → callerVar.Errorf(format, args...)
-			fn += "f"
-			newArgs = call.Args[1:]
-		}
+	fn, newArgs, ok := checker.replacement(call, proposedFn)
+	if !ok {
+		return nil
 	}
 
 	// Guard: only emit the fix if the target method exists on the caller's type.
@@ -153,6 +153,31 @@ func (checker FailNow) fix(pass *analysis.Pass, call *CallMeta, proposedFn strin
 			NewText: newText,
 		}},
 	}}
+}
+
+func (FailNow) replacement(call *CallMeta, proposedFn string) (fn string, args []ast.Expr, ok bool) {
+	fn = proposedFn
+	if call.Fn.IsFmt {
+		// Failf(t, failureMessage, format, args...) → callerVar.Errorf(format, args...)
+		if len(call.Args) < 2 {
+			return "", nil, false
+		}
+		return fn + "f", call.Args[1:], true
+	}
+
+	switch len(call.Args) {
+	case 0:
+		return "", nil, false
+	case 1:
+		// Fail(t, failureMessage) → callerVar.Error(failureMessage)
+		return fn, call.Args, true
+	case 2:
+		// Fail(t, failureMessage, msg) → callerVar.Error(msg)
+		return fn, call.Args[1:], true
+	default:
+		// Fail(t, failureMessage, format, args...) → callerVar.Errorf(format, args...)
+		return fn + "f", call.Args[1:], true
+	}
 }
 
 // callerVar returns the string form and AST expression for the testing.T variable:
@@ -187,4 +212,11 @@ func typeHasMethod(pass *analysis.Pass, expr ast.Expr, methodName string) bool {
 	}
 	obj, _, _ := types.LookupFieldOrMethod(t, true, nil, methodName)
 	return obj != nil
+}
+
+func typeSupportsFailNowReplacements(pass *analysis.Pass, expr ast.Expr) bool {
+	return typeHasMethod(pass, expr, "Error") &&
+		typeHasMethod(pass, expr, "Errorf") &&
+		typeHasMethod(pass, expr, "Fatal") &&
+		typeHasMethod(pass, expr, "Fatalf")
 }

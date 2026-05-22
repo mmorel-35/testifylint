@@ -592,6 +592,10 @@ t.Fatalf("format %s", arg)
 the standard `testing.T` methods. Using `t.Error`, `t.Fatal`, `t.Errorf`, and `t.Fatalf` directly is
 simpler and more idiomatic Go.
 
+`fail-now` intentionally skips constrained-interface calls where the first argument only satisfies
+`assert.TestingT` / `require.TestingT` and does not expose the replacement `testing.T` method.
+These cases are ignored to avoid unsafe diagnostics or fixes.
+
 ---
 
 ### float-compare
