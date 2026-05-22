@@ -225,7 +225,7 @@ func typeSupportsFailNowReplacements(pass *analysis.Pass, expr ast.Expr) bool {
 		return false
 	}
 
-	iface := failNowReplacementIface()
+	iface := cachedFailNowReplacementIface()
 	if types.Implements(t, iface) {
 		return true
 	}
@@ -240,11 +240,11 @@ func typeSupportsFailNowReplacements(pass *analysis.Pass, expr ast.Expr) bool {
 	return !isPtr && types.Implements(types.NewPointer(t), iface)
 }
 
-func failNowReplacementIface() *types.Interface {
-	return failNowReplacementIfaceValue
+func cachedFailNowReplacementIface() *types.Interface {
+	return failNowReplacementIface
 }
 
-var failNowReplacementIfaceValue = newFailNowReplacementIface()
+var failNowReplacementIface = newFailNowReplacementIface()
 
 func newFailNowReplacementIface() *types.Interface {
 	anyIface := types.NewInterfaceType(nil, nil)
