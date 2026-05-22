@@ -23,6 +23,17 @@ type assertWrongReplacementSignaturesT interface {
 	Fatalf(format string, args ...interface{}) int
 }
 
+type assertPointerOnlyReplacementsT struct{}
+
+func (assertPointerOnlyReplacementsT) Errorf(format string, args ...interface{}) {}
+func (*assertPointerOnlyReplacementsT) Error(args ...interface{})                 {}
+func (*assertPointerOnlyReplacementsT) Fatal(args ...interface{})                 {}
+func (*assertPointerOnlyReplacementsT) Fatalf(format string, args ...interface{}) {}
+
+func newAssertPointerOnlyReplacementsT() assertPointerOnlyReplacementsT {
+	return assertPointerOnlyReplacementsT{}
+}
+
 func TestFailNowConstrainedInterface(t *testing.T) {
 	var (
 		assertT            assertOnlyTestingT
@@ -57,5 +68,11 @@ func TestFailNowConstrainedInterface(t *testing.T) {
 		assert.Failf(assertWrongMethods, "failure", "fmt %s", "arg")
 		assert.FailNow(assertWrongMethods, "failure")
 		assert.FailNowf(assertWrongMethods, "failure", "fmt %s", "arg")
+	}
+
+	// Valid (ignored): non-addressable values must not rely on pointer-only replacement methods.
+	{
+		assert.Fail(newAssertPointerOnlyReplacementsT(), "failure")
+		assert.FailNow(newAssertPointerOnlyReplacementsT(), "failure")
 	}
 }

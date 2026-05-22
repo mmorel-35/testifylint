@@ -230,12 +230,23 @@ func typeSupportsFailNowReplacements(pass *analysis.Pass, expr ast.Expr) bool {
 		return true
 	}
 
+	tv, ok := pass.TypesInfo.Types[expr]
+	if !ok || !tv.Addressable() {
+		return false
+	}
+
 	// Keep supporting addressable values whose pointer method set satisfies interface.
 	_, isPtr := t.(*types.Pointer)
 	return !isPtr && types.Implements(types.NewPointer(t), iface)
 }
 
 func failNowReplacementIface() *types.Interface {
+	return failNowReplacementIfaceValue
+}
+
+var failNowReplacementIfaceValue = newFailNowReplacementIface()
+
+func newFailNowReplacementIface() *types.Interface {
 	anyIface := types.NewInterfaceType(nil, nil)
 	anyIface.Complete()
 	variadicAny := types.NewSlice(anyIface)
