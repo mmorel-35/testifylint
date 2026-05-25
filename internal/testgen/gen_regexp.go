@@ -48,10 +48,32 @@ func (g RegexpTestsGenerator) TemplateData() any {
 				Argsf:      "[]byte(`\\w+`), out",
 				ReportMsgf: reportInvalidArg,
 			},
+			{
+				Fn:         "Regexp",
+				Argsf:      "myDefinedString(`\\w+`), out",
+				ReportMsgf: reportInvalidArg,
+			},
+			{
+				Fn:         "NotRegexp",
+				Argsf:      "myDefinedString(`\\w+`), out",
+				ReportMsgf: reportInvalidArg,
+			},
+			{
+				Fn:         "Regexp",
+				Argsf:      "rxStructAlias, out",
+				ReportMsgf: reportInvalidArg,
+			},
+			{
+				Fn:         "NotRegexp",
+				Argsf:      "rxStructAlias, out",
+				ReportMsgf: reportInvalidArg,
+			},
 		},
 		ValidAssertions: []Assertion{
 			{Fn: "Regexp", Argsf: "`\\[.*\\] DEBUG \\(.*TestNew.*\\): message`, out"},
 			{Fn: "NotRegexp", Argsf: "`\\[.*\\] TRACE message`, out"},
+			{Fn: "Regexp", Argsf: "myStrAlias(`\\w+`), out"},
+			{Fn: "NotRegexp", Argsf: "myStrAlias(`\\w+`), out"},
 			{Fn: "Regexp", Argsf: "compiledRegexp, out"},
 			{Fn: "NotRegexp", Argsf: "compiledRegexp, out"},
 			{Fn: "Regexp", Argsf: "rxAlias, out"},
@@ -83,10 +105,17 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+type myDefinedString string
+
+type myStrAlias = string
+
+type myRegexpAlias = regexp.Regexp
+
 // myRxAlias is a type alias for *regexp.Regexp used to verify that alias types are accepted.
 type myRxAlias = *regexp.Regexp
 
-// assertRegexpGeneric demonstrates that type parameters are accepted conservatively.
+// assertRegexpGeneric demonstrates that a type parameter is accepted conservatively.
+// This differs from aliases such as myStrAlias or myRxAlias, which are handled separately.
 func assertRegexpGeneric[T ~string](t *testing.T, rx T, str string) {
 	assert.Regexp(t, rx, str)
 	assert.NotRegexp(t, rx, str)
@@ -95,6 +124,7 @@ func assertRegexpGeneric[T ~string](t *testing.T, rx T, str string) {
 func {{ .CheckerName.AsTestName }}(t *testing.T) {
 	var out string
 	compiledRegexp := regexp.MustCompile(` + "`" + `\w+` + "`" + `)
+	var rxStructAlias *myRegexpAlias = regexp.MustCompile(` + "`" + `\w+` + "`" + `)
 	var rxAlias myRxAlias = regexp.MustCompile(` + "`" + `\w+` + "`" + `)
 
 	// Invalid: regexp.MustCompile usage.
