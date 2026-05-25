@@ -60,12 +60,12 @@ func (g RegexpTestsGenerator) TemplateData() any {
 			},
 			{
 				Fn:         "Regexp",
-				Argsf:      "rxStructAlias, out",
+				Argsf:      "rxRegexpStructAlias, out",
 				ReportMsgf: reportInvalidArg,
 			},
 			{
 				Fn:         "NotRegexp",
-				Argsf:      "rxStructAlias, out",
+				Argsf:      "rxRegexpStructAlias, out",
 				ReportMsgf: reportInvalidArg,
 			},
 		},
@@ -109,7 +109,7 @@ type myDefinedString string
 
 type myStrAlias = string
 
-type myRegexpAlias = regexp.Regexp
+type myRegexpStructAlias = regexp.Regexp
 
 // myRxAlias is a type alias for *regexp.Regexp used to verify that alias types are accepted.
 type myRxAlias = *regexp.Regexp
@@ -124,7 +124,7 @@ func assertRegexpGeneric[T ~string](t *testing.T, rx T, str string) {
 func {{ .CheckerName.AsTestName }}(t *testing.T) {
 	var out string
 	compiledRegexp := regexp.MustCompile(` + "`" + `\w+` + "`" + `)
-	var rxStructAlias *myRegexpAlias = regexp.MustCompile(` + "`" + `\w+` + "`" + `)
+	var rxRegexpStructAlias *myRegexpStructAlias = regexp.MustCompile(` + "`" + `\w+` + "`" + `)
 	var rxAlias myRxAlias = regexp.MustCompile(` + "`" + `\w+` + "`" + `)
 
 	// Invalid: regexp.MustCompile usage.
