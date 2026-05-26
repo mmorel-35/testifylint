@@ -15,9 +15,9 @@ type myStrAlias = string
 
 type myRegexpStructAlias = regexp.Regexp
 
-type foo struct{}
+type testStringer struct{}
 
-func (foo) String() string { return "42" }
+func (testStringer) String() string { return "42" }
 
 // myRxAlias is a type alias for *regexp.Regexp used to verify that alias types are accepted.
 type myRxAlias = *regexp.Regexp
@@ -73,10 +73,10 @@ func TestRegexpChecker(t *testing.T) {
 		assert.Regexpf(t, 42.0, out, "msg with args %d %s", 42, "42")                      // want "regexp: use string or \\*regexp\\.Regexp as the first argument"
 		assert.NotRegexp(t, 42.0, out)                                                     // want "regexp: use string or \\*regexp\\.Regexp as the first argument"
 		assert.NotRegexpf(t, 42.0, out, "msg with args %d %s", 42, "42")                   // want "regexp: use string or \\*regexp\\.Regexp as the first argument"
-		assert.Regexp(t, foo{}, out)                                                       // want "regexp: use string or \\*regexp\\.Regexp as the first argument"
-		assert.Regexpf(t, foo{}, out, "msg with args %d %s", 42, "42")                     // want "regexp: use string or \\*regexp\\.Regexp as the first argument"
-		assert.NotRegexp(t, foo{}, out)                                                    // want "regexp: use string or \\*regexp\\.Regexp as the first argument"
-		assert.NotRegexpf(t, foo{}, out, "msg with args %d %s", 42, "42")                  // want "regexp: use string or \\*regexp\\.Regexp as the first argument"
+		assert.Regexp(t, testStringer{}, out)                                              // want "regexp: use string or \\*regexp\\.Regexp as the first argument"
+		assert.Regexpf(t, testStringer{}, out, "msg with args %d %s", 42, "42")            // want "regexp: use string or \\*regexp\\.Regexp as the first argument"
+		assert.NotRegexp(t, testStringer{}, out)                                           // want "regexp: use string or \\*regexp\\.Regexp as the first argument"
+		assert.NotRegexpf(t, testStringer{}, out, "msg with args %d %s", 42, "42")         // want "regexp: use string or \\*regexp\\.Regexp as the first argument"
 	}
 
 	// Valid.

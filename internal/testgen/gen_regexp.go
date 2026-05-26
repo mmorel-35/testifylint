@@ -110,12 +110,12 @@ func (g RegexpTestsGenerator) TemplateData() any {
 			},
 			{
 				Fn:         "Regexp",
-				Argsf:      "foo{}, out",
+				Argsf:      "testStringer{}, out",
 				ReportMsgf: reportInvalidArg,
 			},
 			{
 				Fn:         "NotRegexp",
-				Argsf:      "foo{}, out",
+				Argsf:      "testStringer{}, out",
 				ReportMsgf: reportInvalidArg,
 			},
 		},
@@ -161,9 +161,9 @@ type myStrAlias = string
 
 type myRegexpStructAlias = regexp.Regexp
 
-type foo struct{}
+type testStringer struct{}
 
-func (foo) String() string { return "42" }
+func (testStringer) String() string { return "42" }
 
 // myRxAlias is a type alias for *regexp.Regexp used to verify that alias types are accepted.
 type myRxAlias = *regexp.Regexp
