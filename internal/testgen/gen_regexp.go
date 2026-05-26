@@ -68,6 +68,56 @@ func (g RegexpTestsGenerator) TemplateData() any {
 				Argsf:      "rxRegexpStructAlias, out",
 				ReportMsgf: reportInvalidArg,
 			},
+			{
+				Fn:         "Regexp",
+				Argsf:      "42, out",
+				ReportMsgf: reportInvalidArg,
+			},
+			{
+				Fn:         "NotRegexp",
+				Argsf:      "42, out",
+				ReportMsgf: reportInvalidArg,
+			},
+			{
+				Fn:         "Regexp",
+				Argsf:      "int8(42), out",
+				ReportMsgf: reportInvalidArg,
+			},
+			{
+				Fn:         "NotRegexp",
+				Argsf:      "int8(42), out",
+				ReportMsgf: reportInvalidArg,
+			},
+			{
+				Fn:         "Regexp",
+				Argsf:      "uint8(42), out",
+				ReportMsgf: reportInvalidArg,
+			},
+			{
+				Fn:         "NotRegexp",
+				Argsf:      "uint8(42), out",
+				ReportMsgf: reportInvalidArg,
+			},
+			{
+				Fn:         "Regexp",
+				Argsf:      "42.0, out",
+				ReportMsgf: reportInvalidArg,
+			},
+			{
+				Fn:         "NotRegexp",
+				Argsf:      "42.0, out",
+				ReportMsgf: reportInvalidArg,
+			},
+			{
+				Fn:         "Regexp",
+				Argsf:      "foo{}, out",
+				ReportMsgf: reportInvalidArg,
+			},
+			{
+				Fn:         "NotRegexp",
+				Argsf:      "foo{}, out",
+				ReportMsgf: reportInvalidArg,
+			},
 		},
 		ValidAssertions: []Assertion{
 			{Fn: "Regexp", Argsf: "`\\[.*\\] DEBUG \\(.*TestNew.*\\): message`, out"},
@@ -110,6 +160,10 @@ type myDefinedString string
 type myStrAlias = string
 
 type myRegexpStructAlias = regexp.Regexp
+
+type foo struct{}
+
+func (foo) String() string { return "42" }
 
 // myRxAlias is a type alias for *regexp.Regexp used to verify that alias types are accepted.
 type myRxAlias = *regexp.Regexp
