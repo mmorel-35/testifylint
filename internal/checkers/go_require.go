@@ -126,6 +126,16 @@ func (checker GoRequire) Check(pass *analysis.Pass, insp *inspector.Inspector) (
 			return true
 		}
 
+		if isWaitGroupGoCall(pass, ce) {
+			// wg.Go runs the callback in a new goroutine (like `go func() {...}()`).
+			if push {
+				inGoroutineRunningTestFunc.Push(false)
+			} else {
+				inGoroutineRunningTestFunc.Pop()
+			}
+			return true
+		}
+
 		if !push {
 			return false
 		}
@@ -234,6 +244,11 @@ func (checker GoRequire) checkFunc(
 		ce, ok := node.(*ast.CallExpr)
 		if !ok {
 			return true
+		}
+
+		if isWaitGroupGoCall(pass, ce) {
+			// wg.Go runs the callback in a new goroutine; don't recurse into it.
+			return false
 		}
 
 		testifyCall := NewCallMeta(pass, ce)
