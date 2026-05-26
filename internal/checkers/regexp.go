@@ -55,33 +55,38 @@ func (checker Regexp) Check(pass *analysis.Pass, call *CallMeta) *analysis.Diagn
 	return nil
 }
 
-// isStringOrRegexpType returns true if the expression is of a type whose underlying type is string
-// (including untyped strings, defined string types, and string-based type aliases), *regexp.Regexp
-// type (including type aliases), or a type parameter (accepted conservatively to avoid false
-// positives in generic code).
+// isStringOrRegexpType returns true if the expression is of strict string type
+// (including untyped strings and aliases to string), *regexp.Regexp (including aliases to
+// *regexp.Regexp), or a type parameter accepted conservatively to avoid false positives for code
+// like `func[T interface{ ~string }](rx T) { assert.Regexp(t, rx, str) }`.
+//
+// Note that *types.TypeParam and *types.Alias are different cases and are handled separately.
 func isStringOrRegexpType(pass *analysis.Pass, e ast.Expr) bool {
 	t := pass.TypesInfo.TypeOf(e)
 	if t == nil {
 		return false
 	}
 
-	// Conservatively accept type parameters to avoid false positives in generic code.
-	if _, ok := types.Unalias(t).(*types.TypeParam); ok {
+	unaliased := types.Unalias(t)
+
+	// Conservatively accept type parameters to avoid false positives for code like
+	// `func[T interface{ ~string }](rx T) { assert.Regexp(t, rx, str) }`.
+	if _, ok := unaliased.(*types.TypeParam); ok {
 		return true
 	}
 
-	// Check for string types (includes string, untyped string, and string-underlying type aliases).
-	if isUnderlying(pass, e, types.IsString) {
+	// Accept only strict string and untyped string, plus aliases to those exact types.
+	basic, ok := unaliased.(*types.Basic)
+	if ok && (basic.Kind() == types.String || basic.Kind() == types.UntypedString) {
 		return true
 	}
 
-	// Check for *regexp.Regexp (using Unalias on both the type and pointer element to handle
-	// type aliases such as `type MyRx = *regexp.Regexp` or `type MyRegexp = regexp.Regexp`).
-	ptr, ok := types.Unalias(t).(*types.Pointer)
+	// Accept *regexp.Regexp and aliases to that exact pointer type.
+	ptr, ok := unaliased.(*types.Pointer)
 	if !ok {
 		return false
 	}
-	named, ok := types.Unalias(ptr.Elem()).(*types.Named)
+	named, ok := ptr.Elem().(*types.Named)
 	if !ok {
 		return false
 	}
