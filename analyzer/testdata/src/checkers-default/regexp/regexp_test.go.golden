@@ -15,6 +15,10 @@ type myStrAlias = string
 
 type myRegexpStructAlias = regexp.Regexp
 
+type foo struct{}
+
+func (foo) String() string { return "42" }
+
 // myRxAlias is a type alias for *regexp.Regexp used to verify that alias types are accepted.
 type myRxAlias = *regexp.Regexp
 
@@ -53,6 +57,26 @@ func TestRegexpChecker(t *testing.T) {
 		assert.Regexpf(t, rxRegexpStructAlias, out, "msg with args %d %s", 42, "42")       // want "regexp: use string or \\*regexp\\.Regexp as the first argument"
 		assert.NotRegexp(t, rxRegexpStructAlias, out)                                      // want "regexp: use string or \\*regexp\\.Regexp as the first argument"
 		assert.NotRegexpf(t, rxRegexpStructAlias, out, "msg with args %d %s", 42, "42")    // want "regexp: use string or \\*regexp\\.Regexp as the first argument"
+		assert.Regexp(t, 42, out)                                                          // want "regexp: use string or \\*regexp\\.Regexp as the first argument"
+		assert.Regexpf(t, 42, out, "msg with args %d %s", 42, "42")                        // want "regexp: use string or \\*regexp\\.Regexp as the first argument"
+		assert.NotRegexp(t, 42, out)                                                       // want "regexp: use string or \\*regexp\\.Regexp as the first argument"
+		assert.NotRegexpf(t, 42, out, "msg with args %d %s", 42, "42")                     // want "regexp: use string or \\*regexp\\.Regexp as the first argument"
+		assert.Regexp(t, int8(42), out)                                                    // want "regexp: use string or \\*regexp\\.Regexp as the first argument"
+		assert.Regexpf(t, int8(42), out, "msg with args %d %s", 42, "42")                  // want "regexp: use string or \\*regexp\\.Regexp as the first argument"
+		assert.NotRegexp(t, int8(42), out)                                                 // want "regexp: use string or \\*regexp\\.Regexp as the first argument"
+		assert.NotRegexpf(t, int8(42), out, "msg with args %d %s", 42, "42")               // want "regexp: use string or \\*regexp\\.Regexp as the first argument"
+		assert.Regexp(t, uint8(42), out)                                                   // want "regexp: use string or \\*regexp\\.Regexp as the first argument"
+		assert.Regexpf(t, uint8(42), out, "msg with args %d %s", 42, "42")                 // want "regexp: use string or \\*regexp\\.Regexp as the first argument"
+		assert.NotRegexp(t, uint8(42), out)                                                // want "regexp: use string or \\*regexp\\.Regexp as the first argument"
+		assert.NotRegexpf(t, uint8(42), out, "msg with args %d %s", 42, "42")              // want "regexp: use string or \\*regexp\\.Regexp as the first argument"
+		assert.Regexp(t, 42.0, out)                                                        // want "regexp: use string or \\*regexp\\.Regexp as the first argument"
+		assert.Regexpf(t, 42.0, out, "msg with args %d %s", 42, "42")                      // want "regexp: use string or \\*regexp\\.Regexp as the first argument"
+		assert.NotRegexp(t, 42.0, out)                                                     // want "regexp: use string or \\*regexp\\.Regexp as the first argument"
+		assert.NotRegexpf(t, 42.0, out, "msg with args %d %s", 42, "42")                   // want "regexp: use string or \\*regexp\\.Regexp as the first argument"
+		assert.Regexp(t, foo{}, out)                                                       // want "regexp: use string or \\*regexp\\.Regexp as the first argument"
+		assert.Regexpf(t, foo{}, out, "msg with args %d %s", 42, "42")                     // want "regexp: use string or \\*regexp\\.Regexp as the first argument"
+		assert.NotRegexp(t, foo{}, out)                                                    // want "regexp: use string or \\*regexp\\.Regexp as the first argument"
+		assert.NotRegexpf(t, foo{}, out, "msg with args %d %s", 42, "42")                  // want "regexp: use string or \\*regexp\\.Regexp as the first argument"
 	}
 
 	// Valid.
