@@ -35,17 +35,20 @@ func isWaitGroupGoCall(pass *analysis.Pass, ce *ast.CallExpr) bool {
 		return false
 	}
 
-	sig, ok := fn.Type().(*types.Signature)
-	if !ok {
-		return false
+	recvType := sel.Recv()
+	if recvType == nil {
+		sig, ok := fn.Type().(*types.Signature)
+		if !ok {
+			return false
+		}
+		recv := sig.Recv()
+		if recv == nil {
+			return false
+		}
+		recvType = recv.Type()
 	}
 
-	recv := sig.Recv()
-	if recv == nil {
-		return false
-	}
-
-	t := recv.Type()
+	t := recvType
 	if ptr, ok := t.(*types.Pointer); ok {
 		t = ptr.Elem()
 	}

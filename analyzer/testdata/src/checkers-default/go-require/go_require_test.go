@@ -99,6 +99,10 @@ func TestGoRequireChecker_Smoke(t *testing.T) {
 		require.True(t, b)                                            // want "go-require: require must only be used in the goroutine running the test function"
 		require.Truef(t, b, "msg with args %d %s", 42, "42")          // want "go-require: require must only be used in the goroutine running the test function"
 	})
+
+	(*sync.WaitGroup).Go(&wg, func() {
+		require.NoError(t, err) // want "go-require: require must only be used in the goroutine running the test function"
+	})
 }
 
 func TestGoRequireChecker(t *testing.T) {

@@ -58,6 +58,11 @@ func TestWaitGroupGo(t *testing.T) {
 		})
 	})
 
+	(*sync.WaitGroup).Go(&wg, func() {
+		assert.NoError(t, nil)
+		assert.Error(t, nil)
+	})
+
 	assert.Error(t, nil) // want "require-error: for error assertions use require"
 	assert.Error(t, nil) // want "require-error: for error assertions use require"
 	wg.Wait()
