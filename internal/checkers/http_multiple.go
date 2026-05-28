@@ -234,15 +234,18 @@ func (checker HTTPMultiple) generateFix(
 	sb.WriteString(innerIndent)
 	// Use t.Context() so the request context is automatically cancelled when the test ends,
 	// without requiring an explicit "context" import.
-	_, _ = fmt.Fprintf(&sb, "req := %s.NewRequestWithContext(%s.Context(), %s, %s, nil)\n",
+	reqLine := fmt.Sprintf("req := %s.NewRequestWithContext(%s.Context(), %s, %s, nil)\n",
 		httptestQualifier, tVar, methodArg, key.url)
+	sb.WriteString(reqLine)
 	if key.values != "nil" {
 		// testify's HTTP helpers set req.URL.RawQuery = values.Encode() — mirror that here.
 		sb.WriteString(innerIndent)
-		_, _ = fmt.Fprintf(&sb, "req.URL.RawQuery = %s.Encode()\n", key.values)
+		rawQueryLine := fmt.Sprintf("req.URL.RawQuery = %s.Encode()\n", key.values)
+		sb.WriteString(rawQueryLine)
 	}
 	sb.WriteString(innerIndent)
-	_, _ = fmt.Fprintf(&sb, "rr := %s.NewRecorder()\n", httptestQualifier)
+	recorderLine := fmt.Sprintf("rr := %s.NewRecorder()\n", httptestQualifier)
+	sb.WriteString(recorderLine)
 	sb.WriteString(innerIndent)
 	sb.WriteString(key.handler + "(rr, req)\n")
 	for _, line := range assertLines {
