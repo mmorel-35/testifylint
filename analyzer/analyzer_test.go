@@ -214,6 +214,8 @@ func TestTestifyLint_NotDefaultCases(t *testing.T) {
 		{
 			dir:   "http-multiple-add-import",
 			flags: map[string]string{"disable-all": "true", "enable": checkers.NewHTTPMultiple().Name()},
+		},
+		{
 			dir:   "graceful-teardown-no-import",
 			flags: map[string]string{"disable-all": "true", "enable": checkers.NewGracefulTeardown().Name()},
 		},
