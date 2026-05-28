@@ -156,7 +156,10 @@ func Test_newCheckers(t *testing.T) {
 				},
 			},
 			expRegular:  replace(enabledByDefaultRegularCheckers, formatterWithoutEnabledOptions),
-			expAdvanced: append(enabledByDefaultAdvancedCheckers, checkers.NewSuiteTHelper()),
+			expAdvanced: filter(allAdvancedCheckers, config.KnownCheckersValue{
+				checkers.NewSuiteTestName().Name(),
+				checkers.NewGracefulTeardown().Name(),
+			}),
 		},
 		{
 			name: "disable three checkers from enabled by default checkers",
