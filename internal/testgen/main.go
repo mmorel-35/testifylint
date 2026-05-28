@@ -57,6 +57,7 @@ var checkerTestsGenerators = []CheckerTestsGenerator{
 	SuiteTestNameTestsGenerator{},
 	SuiteTHelperTestsGenerator{},
 	UselessAssertTestsGenerator{},
+	WrongTTestsGenerator{},
 }
 
 func init() {

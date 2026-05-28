@@ -41,6 +41,7 @@ var registry = checkersRegistry{
 	{factory: asCheckerFactory(NewSuiteTHelper), enabledByDefault: false},
 	{factory: asCheckerFactory(NewSuiteTestName), enabledByDefault: false},
 	{factory: asCheckerFactory(NewElementsMatch), enabledByDefault: false},
+	{factory: asCheckerFactory(NewWrongT), enabledByDefault: true},
 }
 
 type checkersRegistry []checkerMeta

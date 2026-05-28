@@ -68,6 +68,7 @@ func TestAll(t *testing.T) {
 		"suite-thelper",
 		"suite-test-name",
 		"elements-match",
+		"wrong-t",
 	}
 	if !slices.Equal(expected, checkerList) {
 		t.Fatalf("unexpected list: %#v", checkerList)
@@ -112,6 +113,7 @@ func TestEnabledByDefault(t *testing.T) {
 		"suite-broken-parallel",
 		"suite-method-signature",
 		"suite-subtest-run",
+		"wrong-t",
 	}
 	if !slices.Equal(expected, checkerList) {
 		t.Fatalf("unexpected list: %#v", checkerList)
