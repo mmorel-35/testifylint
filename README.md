@@ -104,6 +104,7 @@ https://golangci-lint.run/docs/linters/configuration/#testifylint
 | [float-compare](#float-compare)                     | ✅                  | ❌       |
 | [formatter](#formatter)                             | ✅                  | 🤏      |
 | [go-require](#go-require)                           | ✅                  | ❌       |
+| [graceful-teardown](#graceful-teardown)             | ❌                  | ✅       |
 | [http-method](#http-method)                         | ✅                  | ✅       |
 | [http-multiple](#http-multiple)                     | ✅                  | ✅       |
 | [http-status-code](#http-status-code)               | ✅                  | ✅       |
@@ -906,6 +907,38 @@ The checker also detects `require` usage inside `sync.WaitGroup.Go` callbacks, s
 (like `go func() {...}()`), and terminating them via `require`/`t.FailNow` has the same undefined behaviour.
 
 P.S. Look at [testify's issue](https://github.com/stretchr/testify/issues/772), related to assertions in the goroutines.
+
+---
+
+### graceful-teardown
+
+```go
+❌
+func (s *ServiceIntegrationSuite) TearDownTest() {
+    if p := s.verdictsProducer; p != nil {
+        s.Require().NoError(p.Close())
+    }
+}
+
+t.Cleanup(func() {
+    require.NoError(t, err)
+})
+
+✅
+func (s *ServiceIntegrationSuite) TearDownTest() {
+    if p := s.verdictsProducer; p != nil {
+        s.Assert().NoError(p.Close())
+    }
+}
+
+t.Cleanup(func() {
+    assert.NoError(t, err)
+})
+```
+
+**Autofix**: true. <br>
+**Enabled by default**: false. <br>
+**Reason**: Possible resource leaks, because `require` finishes the current goroutine.
 
 ---
 
