@@ -87,6 +87,7 @@ func Test_newCheckers(t *testing.T) {
 		checkers.NewSuiteTestName(),
 		checkers.NewElementsMatch(),
 		checkers.NewWrongT(),
+		checkers.NewGracefulTeardown(),
 	}
 
 	formatterWithoutEnabledOptions := checkers.RegularChecker(checkers.NewFormatter().

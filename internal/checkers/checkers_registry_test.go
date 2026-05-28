@@ -69,6 +69,7 @@ func TestAll(t *testing.T) {
 		"suite-test-name",
 		"elements-match",
 		"wrong-t",
+		"graceful-teardown",
 	}
 	if !slices.Equal(expected, checkerList) {
 		t.Fatalf("unexpected list: %#v", checkerList)
@@ -182,6 +183,9 @@ func TestIsEnabledByDefault(t *testing.T) {
 		t.FailNow()
 	}
 	if checkers.IsEnabledByDefault(checkers.NewSuiteTHelper().Name()) {
+		t.FailNow()
+	}
+	if checkers.IsEnabledByDefault(checkers.NewGracefulTeardown().Name()) {
 		t.FailNow()
 	}
 	if checkers.IsEnabledByDefault("unknown") {

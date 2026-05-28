@@ -133,7 +133,6 @@ Describe a new checker in [checkers section](./README.md#checkers).
 
 - [error-compare](#error-compare)
 - [equal-values](#equal-values)
-- [graceful-teardown](#graceful-teardown)
 - [float-compare](#float-compare)
 - [http-sugar](#http-sugar)
 - [require-len](#require-len)
@@ -201,7 +200,7 @@ func (s *ServiceIntegrationSuite) TearDownTest() {
 }
 ```
 
-**Autofix**: false. <br>
+**Autofix**: true. <br>
 **Enabled by default**: false. <br>
 **Reason**: Possible resource leaks, because `require` finishes the current goroutine. <br>
 **Related issues**: [#142](https://github.com/Antonboom/testifylint/issues/142)
