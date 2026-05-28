@@ -40,7 +40,7 @@ func IsYAMLLike(s string) bool {
 	}
 
 	kvCount := 0
-	for _, line := range strings.Split(s, "\n") {
+	for line := range strings.SplitSeq(s, "\n") {
 		if yamlKeyValueLineRe.MatchString(line) {
 			kvCount++
 		}

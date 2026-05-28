@@ -155,7 +155,7 @@ func Test_newCheckers(t *testing.T) {
 					checkers.NewElementsMatch().Name(),
 				},
 			},
-			expRegular:  replace(enabledByDefaultRegularCheckers, formatterWithoutEnabledOptions),
+			expRegular: replace(enabledByDefaultRegularCheckers, formatterWithoutEnabledOptions),
 			expAdvanced: filter(allAdvancedCheckers, config.KnownCheckersValue{
 				checkers.NewSuiteTestName().Name(),
 				checkers.NewGracefulTeardown().Name(),

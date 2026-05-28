@@ -145,7 +145,7 @@ func (checker FailNow) fix(pass *analysis.Pass, call *CallMeta, proposedFn strin
 		return nil
 	}
 
-	newText := []byte(fmt.Sprintf("%s.%s(%s)", callerVar, fn, formatAsCallArgs(pass, newArgs...)))
+	newText := fmt.Appendf(nil, "%s.%s(%s)", callerVar, fn, formatAsCallArgs(pass, newArgs...))
 	return []analysis.SuggestedFix{{
 		Message: fmt.Sprintf("Replace `%s` with `%s.%s`", call.Fn.Name, callerVar, fn),
 		TextEdits: []analysis.TextEdit{{
