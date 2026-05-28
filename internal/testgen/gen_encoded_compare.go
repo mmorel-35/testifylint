@@ -40,10 +40,15 @@ images:
     newTag: "123"
 `
 
+	multiLineYAMLCase := "assert.Equal(t, ` // want \"encoded-compare: use assert\\.YAMLEq\"\n" + multiLineYAML + "`, conf)"
+	multiLineYAMLCase += "\nassert.Equal(t, ` // want \"encoded-compare: use assert\\.YAMLEq\"\n" + multiLineYAML +
+		"`" + `, conf, "msg with args %d %s", 42, "42")`
+
 	return struct {
 		CheckerName       CheckerName
 		InvalidAssertions []Assertion
 		MultiLineJSONCase string
+		MultiLineYAMLCase string
 		ValidAssertions   []Assertion
 		IgnoredAssertions []Assertion
 	}{
@@ -54,6 +59,7 @@ images:
 				Fn: "Equal", Argsf: "`{\"name\":\"name\",\"value\":1000}`, respBody",
 				ReportMsgf: report, ProposedFn: "JSONEq",
 			},
+
 			{
 				Fn: "Equal", Argsf: "expBody, respBody",
 				ReportMsgf: report, ProposedFn: "JSONEq",
@@ -222,6 +228,33 @@ images:
 				ProposedArgsf: "expYaml, string(respBytes)",
 			},
 
+			// json.RawMessage variable cases (underlying []byte type).
+			{
+				Fn: "Equal", Argsf: "`{\"foo\":\"bar\"}`, respJSONRawMessage",
+				ReportMsgf: report, ProposedFn: "JSONEq",
+				ProposedArgsf: "`{\"foo\":\"bar\"}`, string(respJSONRawMessage)",
+			},
+			{
+				Fn: "Equal", Argsf: "expJSON, respJSONRawMessage",
+				ReportMsgf: report, ProposedFn: "JSONEq",
+				ProposedArgsf: "expJSON, string(respJSONRawMessage)",
+			},
+			{
+				Fn: "Equal", Argsf: "respJSONRawMessage, expJSON",
+				ReportMsgf: report, ProposedFn: "JSONEq",
+				ProposedArgsf: "string(respJSONRawMessage), expJSON",
+			},
+			{
+				Fn: "EqualValues", Argsf: "`{\"foo\":\"bar\"}`, respJSONRawMessage",
+				ReportMsgf: report, ProposedFn: "JSONEq",
+				ProposedArgsf: "`{\"foo\":\"bar\"}`, string(respJSONRawMessage)",
+			},
+			{
+				Fn: "Exactly", Argsf: "`{\"foo\":\"bar\"}`, respJSONRawMessage",
+				ReportMsgf: report, ProposedFn: "JSONEq",
+				ProposedArgsf: "`{\"foo\":\"bar\"}`, string(respJSONRawMessage)",
+			},
+
 			// Other Equal* cases.
 			{
 				Fn: "EqualValues", Argsf: "expJSON, resJson",
@@ -241,6 +274,7 @@ images:
 			},
 		},
 		MultiLineJSONCase: multiLineCase,
+		MultiLineYAMLCase: multiLineYAMLCase,
 		ValidAssertions: []Assertion{
 			{Fn: "JSONEq", Argsf: "`{\"name\":\"name\",\"value\":1000}`, respBody"},
 			{Fn: "JSONEq", Argsf: "expJSON, resultJSON"},
@@ -269,8 +303,18 @@ images:
 			{Fn: "NotEqual", Argsf: "raw, resultJSON"},
 			{Fn: "NotEqualValues", Argsf: "resultJSON, resultJSON"},
 
-			{Fn: "YAMLEq", Argsf: "`" + multiLineYAML + "`, conf"},                // Not supported.
-			{Fn: "YAMLEq", Argsf: `"kind: Kustomization", "kind: Kustomization"`}, // Not supported.
+			// These are meaningless, they should be ignored.
+			{Fn: "Equal", Argsf: "42, resultJSON"},
+			{Fn: "EqualValues", Argsf: "42, resultJSON"},
+			{Fn: "Exactly", Argsf: "42, resultJSON"},
+			{Fn: "Equal", Argsf: "42, conf"},
+			{Fn: "EqualValues", Argsf: "42, conf"},
+			{Fn: "Exactly", Argsf: "42, conf"},
+
+			// Multi-line YAML literal cases are tested via MultiLineYAMLCase.
+			{Fn: "YAMLEq", Argsf: "`" + multiLineYAML + "`, conf"},
+			// Single-line YAML is not detected; content-based YAML detection requires multi-line structure.
+			{Fn: "YAMLEq", Argsf: `"kind: Kustomization", "kind: Kustomization"`},
 			{Fn: "YAMLEq", Argsf: "raw, conf"},
 			{Fn: "YAMLEq", Argsf: "raw, string(respBytes)"},
 		},
@@ -308,6 +352,7 @@ func {{ .CheckerName.AsTestName }}(t *testing.T) {
 	var respBody, raw, hexString, toJSON, expJSON, resultJSON, jsonb, resJson string
 	var conf, expectedYAML, expYaml, ymlResult, yamlResult, expYML, outputYaml string
 	var respBytes, resultJSONBytes []byte
+	var respJSONRawMessage json.RawMessage
 	w := httptest.NewRecorder()
 	var batch interface { ParentSummary() []byte }
 	var res [1]struct{ Data []byte }
@@ -321,6 +366,7 @@ func {{ .CheckerName.AsTestName }}(t *testing.T) {
 			{{ NewAssertionExpander.Expand $assrn "assert" "t" nil }}
 		{{- end }}
 		{{ .MultiLineJSONCase }}
+		{{ .MultiLineYAMLCase }}
 	}
 
 	// Valid.
