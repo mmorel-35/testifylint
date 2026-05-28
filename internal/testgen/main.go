@@ -40,6 +40,7 @@ var checkerTestsGenerators = []CheckerTestsGenerator{
 	GoRequireTestsGenerator{},
 	HTTPMultipleTestsGenerator{},
 	LenTestsGenerator{},
+	NegatedAssertTestsGenerator{},
 	NegativePositiveTestsGenerator{},
 	NilCompareTestsGenerator{},
 	RegexpTestsGenerator{},
