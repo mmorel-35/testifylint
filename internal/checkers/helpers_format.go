@@ -35,8 +35,21 @@ func formatAsCast(pass *analysis.Pass, e ast.Expr, t types.Type) []byte {
 	return []byte(typeName + "(" + exprStr + ")")
 }
 
+// formatWithStringCastForBytes formats the expression as a string argument for JSONEq/YAMLEq.
+// It wraps []byte expressions with string() and replaces buffer.Bytes() with buffer.String().
+// Returns nil if the expression cannot be formatted as a string.
 func formatWithStringCastForBytes(pass *analysis.Pass, e ast.Expr) []byte {
 	if !hasBytesType(pass, e) {
+		t := pass.TypesInfo.TypeOf(e)
+		if t == nil {
+			// We cannot format this expression as a string.
+			return nil
+		}
+		bt, ok := t.(*types.Basic)
+		if !ok || bt.Info()&types.IsString == 0 {
+			// We cannot format this expression as a string.
+			return nil
+		}
 		return analysisutil.NodeBytes(pass.Fset, e)
 	}
 
