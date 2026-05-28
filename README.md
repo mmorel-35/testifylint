@@ -101,6 +101,8 @@ https://golangci-lint.run/docs/linters/configuration/#testifylint
 | [float-compare](#float-compare)                     | ✅                  | ❌       |
 | [formatter](#formatter)                             | ✅                  | 🤏      |
 | [go-require](#go-require)                           | ✅                  | ❌       |
+| [http-method](#http-method)                         | ✅                  | ✅       |
+| [http-status-code](#http-status-code)               | ✅                  | ✅       |
 | [len](#len)                                         | ✅                  | ✅       |
 | [negative-positive](#negative-positive)             | ✅                  | ✅       |
 | [nil-compare](#nil-compare)                         | ✅                  | ✅       |
@@ -820,6 +822,40 @@ The checker also detects `require` usage inside `sync.WaitGroup.Go` callbacks, s
 (like `go func() {...}()`), and terminating them via `require`/`t.FailNow` has the same undefined behaviour.
 
 P.S. Look at [testify's issue](https://github.com/stretchr/testify/issues/772), related to assertions in the goroutines.
+
+---
+
+### http-method
+
+```go
+❌
+assert.HTTPStatusCode(t, handler, "GET", "/index", nil, http.StatusOK)
+assert.HTTPBodyContains(t, handler, "GET", "/index", nil, "counter")
+
+✅
+assert.HTTPStatusCode(t, handler, http.MethodGet, "/index", nil, http.StatusOK)
+assert.HTTPBodyContains(t, handler, http.MethodGet, "/index", nil, "counter")
+```
+
+**Autofix**: true. <br>
+**Enabled by default**: true. <br>
+**Reason**: Cleaner code and meaningful constants instead of string literals. This checker is similar to the [usestdlibvars](https://golangci-lint.run/usage/linters/#usestdlibvars) linter. <br>
+
+---
+
+### http-status-code
+
+```go
+❌
+assert.HTTPStatusCode(t, handler, http.MethodGet, "/index", nil, 200)
+
+✅
+assert.HTTPStatusCode(t, handler, http.MethodGet, "/index", nil, http.StatusOK)
+```
+
+**Autofix**: true. <br>
+**Enabled by default**: true. <br>
+**Reason**: Cleaner code and meaningful constants instead of magical numbers. This checker is similar to the [usestdlibvars](https://golangci-lint.run/usage/linters/#usestdlibvars) linter. <br>
 
 ---
 
