@@ -71,6 +71,7 @@ func Test_newCheckers(t *testing.T) {
 		checkers.NewSuiteBrokenParallel(),
 		checkers.NewSuiteMethodSignature(),
 		checkers.NewSuiteSubtestRun(),
+		checkers.NewWrongT(),
 	}
 	allAdvancedCheckers := []checkers.AdvancedChecker{
 		checkers.NewFailNow(),
@@ -85,6 +86,7 @@ func Test_newCheckers(t *testing.T) {
 		checkers.NewSuiteTHelper(),
 		checkers.NewSuiteTestName(),
 		checkers.NewElementsMatch(),
+		checkers.NewWrongT(),
 	}
 
 	formatterWithoutEnabledOptions := checkers.RegularChecker(checkers.NewFormatter().

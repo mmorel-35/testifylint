@@ -118,6 +118,9 @@ linters:
     exhaustive:
       default-signifies-exhaustive: true      
 
+    exhaustive:
+      default-signifies-exhaustive: true
+
     forbidigo:
       forbid:
         - pattern: panic
