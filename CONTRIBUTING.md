@@ -138,7 +138,6 @@ Describe a new checker in [checkers section](./README.md#checkers).
 - [float-compare](#float-compare)
 - [http-sugar](#http-sugar)
 - [require-len](#require-len)
-- [suite-test-name](#suite-test-name)
 
 ---
 
@@ -311,43 +310,6 @@ then before that there must be a length constraint through `require`.
 **Reason**: Similar to [require-error](README.md#require-error). Save you from annoying panics.
 
 Or maybe do something similar for maps? And come up with better name for the checker.
-
----
-
-### suite-test-name
-
-```go
-import (
-    "testing"
-    "github.com/stretchr/testify/suite"
-)
-
-type BalanceSubscriptionSuite struct {
-    suite.Suite
-}
-
-❌ func TestBalanceSubs_Run(t *testing.T) {
-    suite.Run(t, new(BalanceSubscriptionSuite))
-}
-
-
-✅ func TestBalanceSubscriptionSuite(t *testing.T) {
-    suite.Run(t, new(BalanceSubscriptionSuite))
-}
-```
-
-**Autofix**: true. <br>
-**Enabled by default**: false. <br>
-**Reason**: Just unification of approach. <br>
-**Related issues**: [#48](https://github.com/Antonboom/testifylint/issues/48)
-
-Also, maybe to check the configurable format of subtest name? Mess example:
-
-```go
-func (s *HandlersSuite) Test_Usecase_Success()
-func (s *HandlersSuite) TestUsecaseSuccess()
-func (s *HandlersSuite) Test_UsecaseSuccess()
-```
 
 ---
 
