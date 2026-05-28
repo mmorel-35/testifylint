@@ -116,9 +116,6 @@ linters:
               desc: Please, implement helpers without usage of x/tools
     
     exhaustive:
-      default-signifies-exhaustive: true      
-
-    exhaustive:
       default-signifies-exhaustive: true
 
     forbidigo:
