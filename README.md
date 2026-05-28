@@ -103,6 +103,7 @@ https://golangci-lint.run/docs/linters/configuration/#testifylint
 | [formatter](#formatter)                             | ✅                  | 🤏      |
 | [go-require](#go-require)                           | ✅                  | ❌       |
 | [http-method](#http-method)                         | ✅                  | ✅       |
+| [http-multiple](#http-multiple)                     | ✅                  | ✅       |
 | [http-status-code](#http-status-code)               | ✅                  | ✅       |
 | [len](#len)                                         | ✅                  | ✅       |
 | [negative-positive](#negative-positive)             | ✅                  | ✅       |
@@ -869,6 +870,30 @@ assert.HTTPBodyContains(t, handler, http.MethodGet, "/index", nil, "counter")
 **Autofix**: true. <br>
 **Enabled by default**: true. <br>
 **Reason**: Cleaner code and meaningful constants instead of string literals. This checker is similar to the [usestdlibvars](https://golangci-lint.run/usage/linters/#usestdlibvars) linter. <br>
+
+---
+
+### http-multiple
+
+```go
+❌
+assert.HTTPStatusCode(t, handler, "GET", "/path", nil, http.StatusOK)
+assert.HTTPBodyContains(t, handler, "GET", "/path", nil, "hello")
+
+✅
+r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/path", nil)
+w := httptest.NewRecorder()
+handler(w, r)
+assert.Equal(t, http.StatusOK, w.Code)
+assert.Contains(t, w.Body.String(), "hello")
+```
+
+**Autofix**: true. The checker replaces each group of HTTP assertions with a scoped `httptest` block. <br>
+**Enabled by default**: true. <br>
+**Reason**: Each HTTP assertion function makes a separate HTTP call to the handler. Using multiple HTTP
+assertions with the same handler and arguments means a stateful handler could satisfy the tests
+independently but not in a single call. Use `httptest.NewRecorder()` to make a single HTTP call and
+assert multiple properties of the response.
 
 ---
 
