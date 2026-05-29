@@ -14,18 +14,21 @@ import (
 )
 
 const (
-	eventuallyWithTPkgWrongTReport = "do not use outer testing.T as the first argument inside EventuallyWithT callback, use the provided %s (*assert.CollectT)"
-	eventuallyWithTRequireReport   = "do not use require in EventuallyWithT callback, use assert.%s(%s, ...) instead"
-	eventuallyWithTObjReport       = "assertion object %s was created with outer testing.T, use assert.New(%s) inside EventuallyWithT callback"
+	eventuallyWithTPkgWrongTReport = "do not use outer testing.T as the first argument inside " +
+		"EventuallyWithT callback, use the provided %s (*assert.CollectT)"
+	eventuallyWithTRequireReport = "do not use require in EventuallyWithT callback, use %s instead"
+	eventuallyWithTObjReport     = "assertion object %s was created with outer testing.T, use " +
+		"assert.New(%s) inside EventuallyWithT callback"
 
 	// assertNewFnName is the name of the constructor used to create assertion objects
 	// from both the assert and require packages (assert.New / require.New).
 	assertNewFnName = "New"
 )
 
-// EventuallyWithT detects situations inside assert.EventuallyWithT callbacks where
-// the outer testing.T is used instead of the provided *assert.CollectT, or where
-// require package assertions are used instead of assert.
+// EventuallyWithT detects situations inside assert.EventuallyWithT and
+// require.EventuallyWithT callbacks where the outer testing.T is used instead of
+// the provided *assert.CollectT, or where require package assertions are used
+// instead of assert.
 //
 // Package-level assertion calls:
 //
@@ -43,8 +46,8 @@ const (
 type EventuallyWithT struct{}
 
 // NewEventuallyWithT constructs EventuallyWithT checker.
-func NewEventuallyWithT() EventuallyWithT   { return EventuallyWithT{} }
-func (EventuallyWithT) Name() string        { return "eventually-with-t" }
+func NewEventuallyWithT() EventuallyWithT { return EventuallyWithT{} }
+func (EventuallyWithT) Name() string      { return "eventually-with-t" }
 
 func (checker EventuallyWithT) Check(pass *analysis.Pass, insp *inspector.Inspector) (diagnostics []analysis.Diagnostic) {
 	// Collect all assertion object variables (assigned from assert.New or require.New).
@@ -101,7 +104,7 @@ func (checker EventuallyWithT) Check(pass *analysis.Pass, insp *inspector.Inspec
 			if innerCall.IsPkg {
 				diagnostics = append(diagnostics, checker.checkPkgCall(pass, innerCall, collectParam, collectName)...)
 			} else {
-				if d := checker.checkObjCall(pass, innerCall, callCE, assertVars, callbackBodyStart, collectName); d != nil {
+				if d := checker.checkObjCall(pass, callCE, assertVars, callbackBodyStart, collectName); d != nil {
 					diagnostics = append(diagnostics, *d)
 				}
 			}
@@ -125,8 +128,8 @@ func (checker EventuallyWithT) checkPkgCall(
 	if !implementsTestingT(pass, tArg) {
 		return nil
 	}
-	// If the first arg IS the collect param, the call is correct.
-	if isObjIdent(pass, tArg, collectParam) {
+	// If the first arg IS the collect param, or an alias with the same type, the call is correct.
+	if isObjIdent(pass, tArg, collectParam) || isSameType(pass, tArg, collectParam.Type()) {
 		return nil
 	}
 
@@ -149,13 +152,12 @@ func (checker EventuallyWithT) checkPkgCall(
 
 	// require call: report that assert should be used with collect.
 	d := newDiagnostic(checker.Name(), call,
-		fmt.Sprintf(eventuallyWithTRequireReport, call.Fn.Name, collectName))
+		fmt.Sprintf(eventuallyWithTRequireReport, suggestedAssertCall(call.Fn.Name, collectName)))
 	return []analysis.Diagnostic{*d}
 }
 
 func (checker EventuallyWithT) checkObjCall(
 	pass *analysis.Pass,
-	call *CallMeta,
 	callCE *ast.CallExpr,
 	assertVars map[types.Object]bool,
 	callbackBodyStart token.Pos,
@@ -268,4 +270,20 @@ func isObjIdent(pass *analysis.Pass, expr ast.Expr, obj types.Object) bool {
 		return false
 	}
 	return pass.TypesInfo.ObjectOf(id) == obj
+}
+
+func isSameType(pass *analysis.Pass, expr ast.Expr, targetType types.Type) bool {
+	exprType := pass.TypesInfo.TypeOf(expr)
+	if exprType == nil || targetType == nil {
+		return false
+	}
+
+	return types.Identical(exprType, targetType)
+}
+
+func suggestedAssertCall(fnName, collectName string) string {
+	if fnName == assertNewFnName {
+		return fmt.Sprintf("assert.%s(%s)", fnName, collectName)
+	}
+	return fmt.Sprintf("assert.%s(%s, ...)", fnName, collectName)
 }

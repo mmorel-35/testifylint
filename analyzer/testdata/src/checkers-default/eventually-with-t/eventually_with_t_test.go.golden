@@ -23,17 +23,18 @@ func TestEventuallyWithTChecker(t *testing.T) {
 	// Package-level assert calls with outer t – wrong, autofix available.
 	{
 		assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-			assert.Equal(collect, expected, actual)    // want `eventually-with-t: do not use outer testing\.T as the first argument inside EventuallyWithT callback, use the provided collect \(\*assert\.CollectT\)`
-			assert.NoError(collect, err)               // want `eventually-with-t: do not use outer testing\.T as the first argument inside EventuallyWithT callback, use the provided collect \(\*assert\.CollectT\)`
-			assert.True(collect, true)                 // want `eventually-with-t: do not use outer testing\.T as the first argument inside EventuallyWithT callback, use the provided collect \(\*assert\.CollectT\)`
+			assert.Equal(collect, expected, actual) // want `eventually-with-t: do not use outer testing\.T as the first argument inside EventuallyWithT callback, use the provided collect \(\*assert\.CollectT\)`
+			assert.NoError(collect, err)            // want `eventually-with-t: do not use outer testing\.T as the first argument inside EventuallyWithT callback, use the provided collect \(\*assert\.CollectT\)`
+			assert.True(collect, true)              // want `eventually-with-t: do not use outer testing\.T as the first argument inside EventuallyWithT callback, use the provided collect \(\*assert\.CollectT\)`
 		}, timeout, interval)
 	}
 
 	// Package-level require calls with outer t – wrong, no safe autofix.
 	{
 		assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-			require.Equal(t, expected, actual)   // want `eventually-with-t: do not use require in EventuallyWithT callback, use assert\.Equal\(collect, \.\.\.\) instead`
-			require.NoError(t, err)              // want `eventually-with-t: do not use require in EventuallyWithT callback, use assert\.NoError\(collect, \.\.\.\) instead`
+			require.Equal(t, expected, actual) // want `eventually-with-t: do not use require in EventuallyWithT callback, use assert\.Equal\(collect, \.\.\.\) instead`
+			require.NoError(t, err)            // want `eventually-with-t: do not use require in EventuallyWithT callback, use assert\.NoError\(collect, \.\.\.\) instead`
+			require.New(t)                     // want `eventually-with-t: do not use require in EventuallyWithT callback, use assert\.New\(collect\) instead`
 		}, timeout, interval)
 	}
 
@@ -42,8 +43,8 @@ func TestEventuallyWithTChecker(t *testing.T) {
 		a := assert.New(t)
 		r := require.New(t)
 		assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-			a.Equal(expected, actual)  // want `eventually-with-t: assertion object a was created with outer testing\.T, use assert\.New\(collect\) inside EventuallyWithT callback`
-			r.NoError(err)             // want `eventually-with-t: assertion object r was created with outer testing\.T, use assert\.New\(collect\) inside EventuallyWithT callback`
+			a.Equal(expected, actual) // want `eventually-with-t: assertion object a was created with outer testing\.T, use assert\.New\(collect\) inside EventuallyWithT callback`
+			r.NoError(err)            // want `eventually-with-t: assertion object r was created with outer testing\.T, use assert\.New\(collect\) inside EventuallyWithT callback`
 		}, timeout, interval)
 	}
 
@@ -53,6 +54,8 @@ func TestEventuallyWithTChecker(t *testing.T) {
 			assert.Equal(collect, expected, actual)
 			assert.NoError(collect, err)
 			assert.True(collect, true)
+			ct := collect
+			assert.Equal(ct, expected, actual)
 		}, timeout, interval)
 	}
 
