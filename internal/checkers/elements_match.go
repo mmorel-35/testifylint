@@ -35,7 +35,8 @@ func (checker ElementsMatch) Check(pass *analysis.Pass, insp *inspector.Inspecto
 		stmts := block.List
 
 		for i := 0; i < len(stmts); {
-			// checkPattern returns the next index to continue scanning from.
+			// checkPattern returns the first index after a consumed pattern,
+			// or i+1 when no pattern matches.
 			d, nextIndex := checker.checkPattern(pass, stmts, i)
 			if d != nil {
 				diagnostics = append(diagnostics, *d)
@@ -222,11 +223,15 @@ func (checker ElementsMatch) checkSortAndLoopPattern(
 	}
 
 	file := pass.Fset.File(stmts[idx].Pos())
-	firstSortLineStart := file.LineStart(file.Line(stmts[idx].Pos()))
-	secondSortLineStart := file.LineStart(file.Line(stmts[idx+1].Pos()))
-	deleteEndPos := loop.Pos()
-	if nextLine := file.Line(stmts[idx+1].End()) + 1; nextLine <= file.LineCount() {
-		deleteEndPos = file.LineStart(nextLine)
+	if file == nil {
+		return newDiagnostic(checker.Name(), loopCall, msg), idx + 3
+	}
+	sortXLineStart := file.LineStart(file.Line(stmts[idx].Pos()))
+	sortYLineStart := file.LineStart(file.Line(stmts[idx+1].Pos()))
+	deleteEndPos := stmts[idx+1].End()
+	nextLineAfterSort := file.Line(stmts[idx+1].End()) + 1
+	if nextLineAfterSort <= file.LineCount() {
+		deleteEndPos = file.LineStart(nextLineAfterSort)
 	}
 
 	replaceLoopEdit := analysis.TextEdit{
@@ -237,8 +242,8 @@ func (checker ElementsMatch) checkSortAndLoopPattern(
 	fix := analysis.SuggestedFix{
 		Message: fmt.Sprintf("Replace `%s` with `%s`", loopCall.Fn.Name, proposedFn),
 		TextEdits: []analysis.TextEdit{
-			{Pos: firstSortLineStart, End: secondSortLineStart, NewText: []byte{}},
-			{Pos: secondSortLineStart, End: deleteEndPos, NewText: []byte{}},
+			{Pos: sortXLineStart, End: sortYLineStart, NewText: []byte{}},
+			{Pos: sortYLineStart, End: deleteEndPos, NewText: []byte{}},
 			replaceLoopEdit,
 		},
 	}
@@ -338,7 +343,7 @@ func extractLenArg(pass *analysis.Pass, expr ast.Expr) (ast.Expr, bool) {
 	if !ok || id.Name != "len" {
 		return nil, false
 	}
-	// Ensure this is built-in len, not a shadowed identifier.
+	// If len is shadowed by a package-level identifier, reject this match.
 	if obj := pass.TypesInfo.ObjectOf(id); obj != nil && obj.Pkg() != nil {
 		return nil, false
 	}
