@@ -50,17 +50,26 @@ func TestAll(t *testing.T) {
 		"len",
 		"equal-values",
 		"regexp",
+		"http-method",
+		"http-status-code",
 		"suite-extra-assert-call",
 		"suite-dont-use-pkg",
 		"useless-assert",
 		"formatter",
+		"fail-now",
 		"blank-import",
 		"go-require",
+		"http-multiple",
+		"negated-assert",
 		"require-error",
 		"suite-broken-parallel",
 		"suite-method-signature",
 		"suite-subtest-run",
 		"suite-thelper",
+		"suite-test-name",
+		"elements-match",
+		"wrong-t",
+		"graceful-teardown",
 	}
 	if !slices.Equal(expected, checkerList) {
 		t.Fatalf("unexpected list: %#v", checkerList)
@@ -90,16 +99,22 @@ func TestEnabledByDefault(t *testing.T) {
 		"len",
 		"equal-values",
 		"regexp",
+		"http-method",
+		"http-status-code",
 		"suite-extra-assert-call",
 		"suite-dont-use-pkg",
 		"useless-assert",
 		"formatter",
+		"fail-now",
 		"blank-import",
 		"go-require",
+		"http-multiple",
+		"negated-assert",
 		"require-error",
 		"suite-broken-parallel",
 		"suite-method-signature",
 		"suite-subtest-run",
+		"wrong-t",
 	}
 	if !slices.Equal(expected, checkerList) {
 		t.Fatalf("unexpected list: %#v", checkerList)
@@ -168,6 +183,9 @@ func TestIsEnabledByDefault(t *testing.T) {
 		t.FailNow()
 	}
 	if checkers.IsEnabledByDefault(checkers.NewSuiteTHelper().Name()) {
+		t.FailNow()
+	}
+	if checkers.IsEnabledByDefault(checkers.NewGracefulTeardown().Name()) {
 		t.FailNow()
 	}
 	if checkers.IsEnabledByDefault("unknown") {

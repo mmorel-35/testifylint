@@ -3,6 +3,7 @@ package checkers
 import (
 	"bytes"
 	"go/ast"
+	"go/types"
 	"strings"
 
 	"golang.org/x/tools/go/analysis"
@@ -26,8 +27,29 @@ func formatAsCallArgs(pass *analysis.Pass, args ...ast.Expr) []byte {
 	return buf.Bytes()
 }
 
+// formatAsCast returns bytes for a type-cast expression T(expr), where T is the
+// string form of t relative to the current package.
+func formatAsCast(pass *analysis.Pass, e ast.Expr, t types.Type) []byte {
+	typeName := types.TypeString(t, types.RelativeTo(pass.Pkg))
+	exprStr := analysisutil.NodeString(pass.Fset, e)
+	return []byte(typeName + "(" + exprStr + ")")
+}
+
+// formatWithStringCastForBytes formats the expression as a string argument for JSONEq/YAMLEq.
+// It wraps []byte expressions with string() and replaces buffer.Bytes() with buffer.String().
+// Returns nil if the expression cannot be formatted as a string.
 func formatWithStringCastForBytes(pass *analysis.Pass, e ast.Expr) []byte {
 	if !hasBytesType(pass, e) {
+		t := pass.TypesInfo.TypeOf(e)
+		if t == nil {
+			// We cannot format this expression as a string.
+			return nil
+		}
+		bt, ok := t.(*types.Basic)
+		if !ok || bt.Info()&types.IsString == 0 {
+			// We cannot format this expression as a string.
+			return nil
+		}
 		return analysisutil.NodeBytes(pass.Fset, e)
 	}
 

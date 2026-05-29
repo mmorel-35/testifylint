@@ -40,6 +40,7 @@ linters:
     - gocheckcompilerdirectives
     - gochecknoinits
     - gocritic
+    - godoclint
     - godot
     - godox
     - goprintffuncname
@@ -48,10 +49,12 @@ linters:
     - importas
     - ineffassign
     - intrange
+    - iotamixing
     - lll
     - makezero
     - mirror
     - misspell
+    - modernize
     - nakedret
     - nestif
     - nilerr
@@ -111,6 +114,9 @@ linters:
           deny:
             - pkg: golang.org/x/tools/go/analysis
               desc: Please, implement helpers without usage of x/tools
+    
+    exhaustive:
+      default-signifies-exhaustive: true
 
     forbidigo:
       forbid:
