@@ -97,7 +97,6 @@ func (checker RedundantAssert) Check(pass *analysis.Pass, insp *inspector.Inspec
 				if isReassignedBetween(block, curr.testifyCall.Args[0], fromStmt, toStmt, pass.Fset, pass.TypesInfo) {
 					continue
 				}
-
 				distance := absInt(currIdx - otherIdx)
 				if distance >= closestDistance {
 					continue

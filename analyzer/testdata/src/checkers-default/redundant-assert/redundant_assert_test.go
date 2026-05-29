@@ -65,7 +65,6 @@ func TestRedundantAssert(t *testing.T) {
 			errA = io.EOF
 			assert.ErrorContains(t, errA, "EOF")
 		}
-
 		require.Error(t, errA)
 		require.ErrorContains(t, errA, "err")
 	}
