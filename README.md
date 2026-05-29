@@ -1130,6 +1130,35 @@ assert.NotRegexp(t, `\[.*\] TRACE message`, out)
 
 ---
 
+### redundant-assert
+
+```go
+❌
+assert.Error(t, err)
+assert.ErrorContains(t, err, "not found")
+
+assert.Error(t, err)
+assert.ErrorIs(t, err, io.EOF)
+
+assert.Error(t, err)
+assert.ErrorAs(t, err, &target)
+
+assert.Error(t, err)
+assert.EqualError(t, err, "end of file")
+
+✅
+assert.ErrorContains(t, err, "not found")
+assert.ErrorIs(t, err, io.EOF)
+assert.ErrorAs(t, err, &target)
+assert.EqualError(t, err, "end of file")
+```
+
+**Autofix**: true. <br>
+**Enabled by default**: true. <br>
+**Reason**: Code simplification.
+
+---
+
 ### require-error
 
 ```go
