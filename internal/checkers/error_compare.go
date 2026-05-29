@@ -53,20 +53,33 @@ func (checker ErrorCompare) checkContains(pass *analysis.Pass, call *CallMeta) *
 		return nil
 	}
 
+	errArg, ok := errArgFromErrErrorCallReceiver(pass, errReceiver)
+	if !ok {
+		return nil
+	}
+
 	// assert.Contains(t, err.Error(), sentinel.Error()) → assert.ErrorIs(t, err, sentinel)
 	if sentinelReceiver, ok := isErrErrorCall(pass, call.Args[1]); ok {
+		sentinelArg, ok := errArgFromErrErrorCallReceiver(pass, sentinelReceiver)
+		if !ok {
+			return nil
+		}
 		return newUseFunctionDiagnostic(checker.Name(), call, "ErrorIs",
 			analysis.TextEdit{
 				Pos:     call.Args[0].Pos(),
 				End:     call.Args[0].End(),
-				NewText: analysisutil.NodeBytes(pass.Fset, errReceiver),
+				NewText: errArg,
 			},
 			analysis.TextEdit{
 				Pos:     call.Args[1].Pos(),
 				End:     call.Args[1].End(),
-				NewText: analysisutil.NodeBytes(pass.Fset, sentinelReceiver),
+				NewText: sentinelArg,
 			},
 		)
+	}
+
+	if !isAssignableToString(pass, call.Args[1]) {
+		return nil
 	}
 
 	// assert.Contains(t, err.Error(), "substr") → assert.ErrorContains(t, err, "substr")
@@ -74,7 +87,7 @@ func (checker ErrorCompare) checkContains(pass *analysis.Pass, call *CallMeta) *
 		analysis.TextEdit{
 			Pos:     call.Args[0].Pos(),
 			End:     call.Args[0].End(),
-			NewText: analysisutil.NodeBytes(pass.Fset, errReceiver),
+			NewText: errArg,
 		},
 	)
 }
@@ -88,22 +101,40 @@ func (checker ErrorCompare) checkEqual(pass *analysis.Pass, call *CallMeta) *ana
 
 	// assert.Equal(t, err.Error(), "expected") → assert.EqualError(t, err, "expected")
 	if errReceiver, ok := isErrErrorCall(pass, a); ok {
+		if !isAssignableToString(pass, b) {
+			return nil
+		}
+
+		errArg, ok := errArgFromErrErrorCallReceiver(pass, errReceiver)
+		if !ok {
+			return nil
+		}
+
 		return newUseFunctionDiagnostic(checker.Name(), call, "EqualError",
 			analysis.TextEdit{
 				Pos:     a.Pos(),
 				End:     a.End(),
-				NewText: analysisutil.NodeBytes(pass.Fset, errReceiver),
+				NewText: errArg,
 			},
 		)
 	}
 
 	// assert.Equal(t, "expected", err.Error()) → assert.EqualError(t, err, "expected")
 	if errReceiver, ok := isErrErrorCall(pass, b); ok {
+		if !isAssignableToString(pass, a) {
+			return nil
+		}
+
+		errArg, ok := errArgFromErrErrorCallReceiver(pass, errReceiver)
+		if !ok {
+			return nil
+		}
+
 		return newUseFunctionDiagnostic(checker.Name(), call, "EqualError",
 			analysis.TextEdit{
 				Pos:     a.Pos(),
 				End:     b.End(),
-				NewText: formatAsCallArgs(pass, errReceiver, a),
+				NewText: append(append(errArg, []byte(", ")...), analysisutil.NodeBytes(pass.Fset, a)...),
 			},
 		)
 	}
