@@ -3,6 +3,7 @@ package checkers
 import (
 	"fmt"
 	"go/ast"
+	"go/token"
 	"math"
 
 	"golang.org/x/tools/go/analysis"
@@ -103,7 +104,7 @@ func (checker RedundantAssert) Check(pass *analysis.Pass, insp *inspector.Inspec
 						Message: "Remove redundant assert.Error assertion",
 						TextEdits: []analysis.TextEdit{{
 							Pos:     curr.parentStmt.Pos(),
-							End:     curr.parentStmt.End(),
+							End:     toStmtLineEnd(pass, curr.parentStmt.End()),
 							NewText: []byte(""),
 						}},
 					},
@@ -126,4 +127,17 @@ func absInt(v int) int {
 		return -v
 	}
 	return v
+}
+
+func toStmtLineEnd(pass *analysis.Pass, pos token.Pos) token.Pos {
+	file := pass.Fset.File(pos)
+	if file == nil {
+		return pos
+	}
+
+	line := file.Line(pos)
+	if line >= file.LineCount() {
+		return pos
+	}
+	return file.LineStart(line + 1)
 }

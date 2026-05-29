@@ -23,16 +23,12 @@ func TestRedundantAssert(t *testing.T) {
 
 	// Invalid.
 	{
-		// want "redundant-assert: remove assert\\.Error: assert\\.ErrorContains already asserts that the error is not nil"
 		assert.ErrorContains(t, errA, "err")
 
 		assert.EqualError(t, errA, "err A")
-		// want "redundant-assert: remove assert\\.Error: assert\\.EqualError already asserts that the error is not nil"
 
-		// want "redundant-assert: remove assert\\.Error: assObj\\.ErrorAs already asserts that the error is not nil"
 		assObj.ErrorAs(errA, &target)
 
-		// want "redundant-assert: remove assert\\.Errorf: assObj\\.ErrorAs already asserts that the error is not nil"
 		require.ErrorIs(t, errA, io.EOF)
 	}
 
