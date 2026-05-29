@@ -92,28 +92,37 @@ https://golangci-lint.run/docs/linters/configuration/#testifylint
 | [bool-compare](#bool-compare)                       | ✅                  | ✅       |
 | [compares](#compares)                               | ✅                  | ✅       |
 | [contains](#contains)                               | ✅                  | 🤏      |
+| [elements-match](#elements-match)                   | ❌                  | ✅       |
 | [empty](#empty)                                     | ✅                  | ✅       |
 | [encoded-compare](#encoded-compare)                 | ✅                  | ✅       |
 | [equal-values](#equal-values)                       | ✅                  | ✅       |
+| [error-compare](#error-compare)                     | ✅                  | 🤏      |
 | [error-is-as](#error-is-as)                         | ✅                  | 🤏      |
 | [error-nil](#error-nil)                             | ✅                  | ✅       |
 | [expected-actual](#expected-actual)                 | ✅                  | ✅       |
+| [fail-now](#fail-now)                               | ✅                  | ✅       |
 | [float-compare](#float-compare)                     | ✅                  | ❌       |
 | [formatter](#formatter)                             | ✅                  | 🤏      |
 | [go-require](#go-require)                           | ✅                  | ❌       |
+| [graceful-teardown](#graceful-teardown)             | ❌                  | ✅       |
+| [http-method](#http-method)                         | ✅                  | ✅       |
+| [http-multiple](#http-multiple)                     | ✅                  | ✅       |
+| [http-status-code](#http-status-code)               | ✅                  | ✅       |
 | [len](#len)                                         | ✅                  | ✅       |
 | [negative-positive](#negative-positive)             | ✅                  | ✅       |
+| [negated-assert](#negated-assert)                   | ✅                  | ✅       |
 | [nil-compare](#nil-compare)                         | ✅                  | ✅       |
 | [regexp](#regexp)                                   | ✅                  | ✅       |
-| [redundant-assert](#redundant-assert)               | ✅                  | ✅       |
-| [require-error](#require-error)                     | ✅                  | ❌       |
+| [require-error](#require-error)                     | ✅                  | 🤏      |
 | [suite-broken-parallel](#suite-broken-parallel)     | ✅                  | ✅       |
 | [suite-dont-use-pkg](#suite-dont-use-pkg)           | ✅                  | ✅       |
 | [suite-extra-assert-call](#suite-extra-assert-call) | ✅                  | ✅       |
 | [suite-method-signature](#suite-method-signature)   | ✅                  | ❌       |
 | [suite-subtest-run](#suite-subtest-run)             | ✅                  | ❌       |
+| [suite-test-name](#suite-test-name)                 | ❌                  | ✅       |
 | [suite-thelper](#suite-thelper)                     | ❌                  | ✅       |
 | [useless-assert](#useless-assert)                   | ✅                  | ❌       |
+| [wrong-t](#wrong-t)                                 | ✅                  | ❌       |
 
 > ⚠️ Also look at open for contribution [checkers](CONTRIBUTING.md#open-for-contribution)
 
@@ -320,6 +329,51 @@ require.Contains(t, logLines[0], `"params":{"query":"test statement"}`)
 ```
 
 </details>
+
+---
+
+### elements-match
+
+```go
+❌
+slices.Sort(expected)
+slices.Sort(result)
+assert.True(t, slices.Equal(expected, result))
+
+✅
+assert.ElementsMatch(t, expected, result)
+```
+
+**Autofix**: true. <br>
+**Enabled by default**: false. <br>
+**Reason**: Code simplification.
+
+---
+
+### error-compare
+
+```go
+❌
+assert.Contains(t, err.Error(), "user not found")
+assert.Contains(t, err.Error(), errSentinel.Error())
+assert.Equal(t, err.Error(), "user not found")
+assert.Equal(t, "user not found", err.Error())
+assert.Equal(t, err, errSentinel)
+assert.NotEqual(t, err, errSentinel)
+
+✅
+assert.ErrorContains(t, err, "user not found")
+assert.ErrorIs(t, err, errSentinel)
+assert.EqualError(t, err, "user not found") // for both Equal(_, err.Error()) cases above
+assert.NotErrorIs(t, err, errSentinel)
+```
+
+**Autofix**: partially (`Contains` and `Equal` with `err.Error()` argument(s) cases). <br>
+**Enabled by default**: true. <br>
+**Reason**: The `Error()` method on the `error` interface exists for humans, not code.
+Using `err.Error()` in assertions compares the string representation of an error,
+which is fragile and ignores the error chain.
+Use dedicated testify error assertions (`ErrorContains`, `ErrorIs`, `EqualError`, etc.) instead.
 
 ---
 
@@ -566,6 +620,38 @@ more natural (actual, expected) in `v2` of `testify`.
 
 ---
 
+### fail-now
+
+```go
+❌
+assert.Fail(t, "unexpected event")
+assert.Fail(t, "unexpected event", args...)
+assert.Failf(t, "unexpected event", "format %s", arg)
+assert.FailNow(t, "unexpected event")
+assert.FailNow(t, "unexpected event", args...)
+assert.FailNowf(t, "unexpected event", "format %s", arg)
+```
+
+```go
+✅
+t.Error("unexpected event")
+t.Errorf("format %s", arg)
+t.Fatal("unexpected event")
+t.Fatalf("format %s", arg)
+```
+
+**Autofix**: true. <br>
+**Enabled by default**: true. <br>
+**Reason**: `assert.Fail` and `assert.FailNow` (and their `f` variants) are redundant wrappers around
+the standard `testing.T` methods. Using `t.Error`, `t.Fatal`, `t.Errorf`, and `t.Fatalf` directly is
+simpler and more idiomatic Go.
+
+`fail-now` intentionally skips constrained-interface calls where the first argument only satisfies
+`assert.TestingT` / `require.TestingT` and does not expose the replacement `testing.T` methods.
+These cases are ignored to avoid unsafe diagnostics or fixes.
+
+---
+
 ### float-compare
 
 ```go
@@ -774,6 +860,12 @@ go func() {
         assert.FailNow(t, msg) ❌
     }
 }()
+
+var wg sync.WaitGroup
+wg.Go(func() {
+    conn, err = lis.Accept()
+    require.NoError(t, err) ❌
+})
 ```
 
 **Autofix**: false. <br>
@@ -811,7 +903,100 @@ In addition, the checker warns about `require` in HTTP handlers (functions and m
 that services the HTTP connection. Terminating these goroutines can lead to undefined behaviour and difficulty debugging
 tests. You can turn off the check using the `--go-require.ignore-http-handlers` flag.
 
+The checker also detects `require` usage inside `sync.WaitGroup.Go` callbacks, since those run in a new goroutine
+(like `go func() {...}()`), and terminating them via `require`/`t.FailNow` has the same undefined behaviour.
+
 P.S. Look at [testify's issue](https://github.com/stretchr/testify/issues/772), related to assertions in the goroutines.
+
+---
+
+### graceful-teardown
+
+```go
+❌
+func (s *ServiceIntegrationSuite) TearDownTest() {
+    if p := s.verdictsProducer; p != nil {
+        s.Require().NoError(p.Close())
+    }
+}
+
+t.Cleanup(func() {
+    require.NoError(t, err)
+})
+
+✅
+func (s *ServiceIntegrationSuite) TearDownTest() {
+    if p := s.verdictsProducer; p != nil {
+        s.Assert().NoError(p.Close())
+    }
+}
+
+t.Cleanup(func() {
+    assert.NoError(t, err)
+})
+```
+
+**Autofix**: true. <br>
+**Enabled by default**: false. <br>
+**Reason**: Possible resource leaks, because `require` finishes the current goroutine.
+
+---
+
+### http-method
+
+```go
+❌
+assert.HTTPStatusCode(t, handler, "GET", "/index", nil, http.StatusOK)
+assert.HTTPBodyContains(t, handler, "GET", "/index", nil, "counter")
+
+✅
+assert.HTTPStatusCode(t, handler, http.MethodGet, "/index", nil, http.StatusOK)
+assert.HTTPBodyContains(t, handler, http.MethodGet, "/index", nil, "counter")
+```
+
+**Autofix**: true. <br>
+**Enabled by default**: true. <br>
+**Reason**: Cleaner code and meaningful constants instead of string literals. This checker is similar to the [usestdlibvars](https://golangci-lint.run/usage/linters/#usestdlibvars) linter. <br>
+
+---
+
+### http-multiple
+
+```go
+❌
+assert.HTTPStatusCode(t, handler, "GET", "/path", nil, http.StatusOK)
+assert.HTTPBodyContains(t, handler, "GET", "/path", nil, "hello")
+
+✅
+r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/path", nil)
+w := httptest.NewRecorder()
+handler(w, r)
+assert.Equal(t, http.StatusOK, w.Code)
+assert.Contains(t, w.Body.String(), "hello")
+```
+
+**Autofix**: true. The checker replaces each group of HTTP assertions with a scoped `httptest` block. <br>
+**Enabled by default**: true. <br>
+**Reason**: Each HTTP assertion function makes a separate HTTP call to the handler. Using multiple HTTP
+assertions with the same handler and arguments means a stateful handler could satisfy the tests
+independently but not in a single call. Use `httptest.NewRecorder()` to make a single HTTP call and
+assert multiple properties of the response.
+
+---
+
+### http-status-code
+
+```go
+❌
+assert.HTTPStatusCode(t, handler, http.MethodGet, "/index", nil, 200)
+
+✅
+assert.HTTPStatusCode(t, handler, http.MethodGet, "/index", nil, http.StatusOK)
+```
+
+**Autofix**: true. <br>
+**Enabled by default**: true. <br>
+**Reason**: Cleaner code and meaningful constants instead of magical numbers. This checker is similar to the [usestdlibvars](https://golangci-lint.run/usage/linters/#usestdlibvars) linter. <br>
 
 ---
 
@@ -986,14 +1171,27 @@ assert.ErrorContains(t, err, "end of file")
 assert.NoError(t, err)
 assert.NotErrorIs(t, err, io.EOF)
 
+// Also detected and fixed (with autofix):
+if !assert.NoError(t, err) {
+    return
+}
+if !assert.NoError(t, err1) || !assert.NoError(t, err2) {
+    return
+}
+
 ✅
 require.Error(t, err) // s.Require().Error(err), s.Require().Error(err)
 require.ErrorIs(t, err, io.EOF)
 require.ErrorAs(t, err, &target)
 // And so on...
+
+// Fixed forms:
+require.NoError(t, err)
+require.NoError(t, err1)
+require.NoError(t, err2)
 ```
 
-**Autofix**: false. <br>
+**Autofix**: partially (for `if !assert.ErrorXxx { return/continue }` patterns). <br>
 **Enabled by default**: true. <br>
 **Reason**: Such "ignoring" of errors leads to further panics, making the test harder to debug.
 
@@ -1008,13 +1206,51 @@ and `NoErrorf`.
 
 Also, to minimize false positives, `require-error` ignores:
 
-- assertions in the `if` condition;
+- non-negated assertions in the `if` condition;
 - assertions in the bool expression;
 - the entire `if-else[-if]` block, if there is an assertion in any `if` condition;
 - the last assertion in the block, if there are no methods/functions calls after it;
-- assertions in an explicit goroutine (including `http.Handler`);
+- assertions in an explicit goroutine (including `http.Handler` and `sync.WaitGroup.Go` callbacks);
 - assertions in an explicit testing cleanup function or suite teardown methods;
 - sequence of `NoError` assertions.
+
+For the same `if !assert.Xxx { return }` pattern applied to **non-error** assertions, see [negated-assert](#negated-assert).
+
+---
+
+### negated-assert
+
+```go
+❌
+if !assert.NoError(t, err) {
+    return
+}
+if !assert.Equal(t, expected, actual) {
+    return
+}
+if !assert.NoError(t, err) || !assert.Equal(t, expected, actual) {
+    return
+}
+
+✅
+require.NoError(t, err)
+require.Equal(t, expected, actual)
+require.NoError(t, err)
+require.Equal(t, expected, actual)
+```
+
+**Autofix**: true. <br>
+**Enabled by default**: true. <br>
+**Reason**: The `if !assert.Xxx { return }` pattern is semantically equivalent to `require.Xxx` and is more
+idiomatic. This applies to **any** assertion, not only error ones.
+
+The checker skips:
+
+- patterns where the if body is not a single `return` or `continue` statement;
+- patterns with an `else` clause;
+- `else if` branches (would leave a dangling `else`);
+- patterns in goroutines, HTTP handlers, and test cleanup functions;
+- conditions using `&&` (different short-circuit semantics).
 
 ---
 
@@ -1174,6 +1410,35 @@ The checker is especially useful in combination with [suite-dont-use-pkg](#suite
 
 ---
 
+### suite-test-name
+
+```go
+import (
+    "testing"
+    "github.com/stretchr/testify/suite"
+)
+
+type BalanceSubscriptionSuite struct {
+    suite.Suite
+}
+
+❌
+func TestBalanceSubs_Run(t *testing.T) {
+    suite.Run(t, new(BalanceSubscriptionSuite))
+}
+
+✅
+func TestBalanceSubscriptionSuite(t *testing.T) {
+    suite.Run(t, new(BalanceSubscriptionSuite))
+}
+```
+
+**Autofix**: true. <br>
+**Enabled by default**: false. <br>
+**Reason**: Just unification of approach.
+
+---
+
 ### suite-thelper
 
 ```go
@@ -1267,6 +1532,58 @@ assert.LessOrEqual(0, uintVal)
 **Autofix**: false. <br>
 **Enabled by default**: true. <br>
 **Reason**: Protection from bugs and dead code.
+
+---
+
+### wrong-t
+
+```go
+❌
+func TestFoo(t *testing.T) {
+    assert.Equal(nil, expected, actual)
+
+    u := &testing.T{}
+    assert.Equal(u, expected, actual)
+}
+
+func TestBar(t *testing.T) {
+    a := assert.New(t)
+
+    t.Run("subtest", func(t *testing.T) {
+        a.Equal(expected, actual) // a was created with the outer t
+    })
+}
+
+✅
+func TestFoo(t *testing.T) {
+    assert.Equal(t, expected, actual)
+}
+
+func TestBar(t *testing.T) {
+    t.Run("subtest", func(t *testing.T) {
+        a := assert.New(t)
+        a.Equal(expected, actual)
+    })
+}
+```
+
+**Autofix**: false. <br>
+**Enabled by default**: true. <br>
+**Reason**: Protection from bugs and misleading test output.
+
+The checker handles two related cases of incorrect `testing.T` usage:
+
+#### 1) Nil or freshly created `testing.T` in package-level assertions
+
+Passing `nil` or a freshly allocated `&testing.T{}` / `new(testing.T)` as the `t` argument will
+cause a panic at runtime (nil dereference) or silently misattribute test failures.
+
+#### 2) Assertion object created with outer `t` used in a subtest
+
+When `assert.New(t)` or `require.New(t)` is called in an outer scope, the resulting
+`*Assertions` object is bound to the outer `testing.T`. Using it inside a `t.Run` subtest
+(which receives its own fresh `t`) causes test failures to be reported against the parent
+test rather than the subtest, breaking the display of test names in failure output.
 
 ---
 
