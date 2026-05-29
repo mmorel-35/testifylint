@@ -4,10 +4,20 @@ package errorcompare
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
+
+type ProcessError struct {
+	Code    string
+	Details any
+}
+
+func (p *ProcessError) Error() string {
+	return fmt.Sprintf("%s - %v", p.Code, p.Details)
+}
 
 func TestErrorCompareChecker(t *testing.T) {
 	var (
@@ -28,16 +38,25 @@ func TestErrorCompareChecker(t *testing.T) {
 	assert.Equal(t, errSentinel, err)                                                      // want "error-compare: use assert\\.ErrorIs"
 	assert.NotEqual(t, err, errSentinel)                                                   // want "error-compare: use assert\\.NotErrorIs"
 	assert.NotEqual(t, errSentinel, err)                                                   // want "error-compare: use assert\\.NotErrorIs"
+	var pErr ProcessError
+	assert.Equal(t, pErr.Error(), "foo") // want "error-compare: use assert\\.EqualError"
 
 	// Valid.
 	assert.ErrorContains(t, err, "user not found")
 	assert.ErrorIs(t, err, errSentinel)
 	assert.NotErrorIs(t, err, errSentinel)
 	assert.EqualError(t, err, "user not found")
+	assert.EqualError(t, &pErr, "foo")
 
 	// Not errors.
 	str1, str2 := "foo", "bar"
 	assert.Equal(t, str1, str2)
 	assert.NotEqual(t, str1, str2)
 	assert.Contains(t, str1, str2)
+
+	// Not safely convertible.
+	var reason any
+	assert.Equal(t, reason, errSentinel.Error())
+	assert.Equal(t, errSentinel.Error(), reason)
+	assert.Contains(t, errSentinel.Error(), reason)
 }
