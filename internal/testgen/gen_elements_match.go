@@ -43,6 +43,7 @@ const elementsMatchTestTmpl = header + `
 package {{ .CheckerName.AsPkgName }}
 
 import (
+	"sort"
 	"slices"
 	"testing"
 
@@ -78,6 +79,26 @@ func {{ .CheckerName.AsTestName }}(t *testing.T) {
 		slices.Sort(a)
 		slices.Sort(b)
 		assert.True(t, slices.Equal(b, a)) // want {{ $.AssertReport }}
+
+		sort.Slice(a, func(i, j int) bool { return a[i] < a[j] })
+		sort.Slice(b, func(i, j int) bool { return b[i] < b[j] })
+		assert.Equal(t, len(a), len(b))
+		for i := range b {
+			require.Equal(t, a[i], b[i]) // want {{ $.RequireReport }}
+		}
+
+		sort.Slice(a, func(i, j int) bool { return a[i] < a[j] })
+		sort.Slice(b, func(i, j int) bool { return b[i] < b[j] })
+		for i := range b {
+			assert.Equal(t, a[i], b[i]) // want {{ $.AssertReport }}
+		}
+
+		assert.Equal(t, len(a), len(b))
+		sort.Slice(a, func(i, j int) bool { return a[i] < a[j] })
+		sort.Slice(b, func(i, j int) bool { return b[i] < b[j] })
+		for i := range b {
+			assert.Equal(t, a[i], b[i]) // want {{ $.AssertReport }}
+		}
 	}
 
 	// Valid.
@@ -102,6 +123,34 @@ func {{ .CheckerName.AsTestName }}(t *testing.T) {
 		slices.Sort(a)
 		slices.Sort(b)
 		assert.Equal(t, a, b)
+
+		// Only one sort call preceding loop.
+		sort.Slice(a, func(i, j int) bool { return a[i] < a[j] })
+		for i := range b {
+			assert.Equal(t, a[i], b[i])
+		}
+
+		// Sort args don't match loop args.
+		sort.Slice(a, func(i, j int) bool { return a[i] < a[j] })
+		sort.Slice(b, func(i, j int) bool { return b[i] < b[j] })
+		for i := range b {
+			assert.Equal(t, a[i], a[i])
+		}
+
+		// Not element-wise loop comparison.
+		sort.Slice(a, func(i, j int) bool { return a[i] < a[j] })
+		sort.Slice(b, func(i, j int) bool { return b[i] < b[j] })
+		for i := range b {
+			assert.True(t, a[i] == b[i])
+		}
+
+		// Loop body has extra statements.
+		sort.Slice(a, func(i, j int) bool { return a[i] < a[j] })
+		sort.Slice(b, func(i, j int) bool { return b[i] < b[j] })
+		for i := range b {
+			assert.Equal(t, a[i], b[i])
+			assert.NotZero(t, i)
+		}
 	}
 }
 `
@@ -111,6 +160,7 @@ const elementsMatchGoldenTmpl = header + `
 package {{ .CheckerName.AsPkgName }}
 
 import (
+	"sort"
 	"slices"
 	"testing"
 
@@ -134,6 +184,17 @@ func {{ .CheckerName.AsTestName }}(t *testing.T) {
 		assert.ElementsMatchf(t, a, b, "elements should match %d and %d", len(a), len(b)) // want {{ $.AssertFReport }}
 
 		assert.ElementsMatch(t, b, a) // want {{ $.AssertReport }}
+
+		require.ElementsMatch(t, a, b) // want {{ $.RequireReport }}
+
+		assert.ElementsMatch(t, a, b) // want {{ $.AssertReport }}
+
+		assert.Equal(t, len(a), len(b))
+		sort.Slice(a, func(i, j int) bool { return a[i] < a[j] })
+		sort.Slice(b, func(i, j int) bool { return b[i] < b[j] })
+		for i := range b {
+			assert.Equal(t, a[i], b[i]) // want {{ $.AssertReport }}
+		}
 	}
 
 	// Valid.
@@ -158,6 +219,34 @@ func {{ .CheckerName.AsTestName }}(t *testing.T) {
 		slices.Sort(a)
 		slices.Sort(b)
 		assert.Equal(t, a, b)
+
+		// Only one sort call preceding loop.
+		sort.Slice(a, func(i, j int) bool { return a[i] < a[j] })
+		for i := range b {
+			assert.Equal(t, a[i], b[i])
+		}
+
+		// Sort args don't match loop args.
+		sort.Slice(a, func(i, j int) bool { return a[i] < a[j] })
+		sort.Slice(b, func(i, j int) bool { return b[i] < b[j] })
+		for i := range b {
+			assert.Equal(t, a[i], a[i])
+		}
+
+		// Not element-wise loop comparison.
+		sort.Slice(a, func(i, j int) bool { return a[i] < a[j] })
+		sort.Slice(b, func(i, j int) bool { return b[i] < b[j] })
+		for i := range b {
+			assert.True(t, a[i] == b[i])
+		}
+
+		// Loop body has extra statements.
+		sort.Slice(a, func(i, j int) bool { return a[i] < a[j] })
+		sort.Slice(b, func(i, j int) bool { return b[i] < b[j] })
+		for i := range b {
+			assert.Equal(t, a[i], b[i])
+			assert.NotZero(t, i)
+		}
 	}
 }
 `
