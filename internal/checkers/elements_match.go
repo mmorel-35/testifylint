@@ -35,14 +35,12 @@ func (checker ElementsMatch) Check(pass *analysis.Pass, insp *inspector.Inspecto
 		stmts := block.List
 
 		for i := 0; i < len(stmts); {
-			d, next := checker.checkPattern(pass, stmts, i)
+			// checkPattern returns the next index to continue scanning from.
+			d, nextIndex := checker.checkPattern(pass, stmts, i)
 			if d != nil {
 				diagnostics = append(diagnostics, *d)
 			}
-			if next <= i {
-				next = i + 1
-			}
-			i = next
+			i = nextIndex
 		}
 	})
 
@@ -224,11 +222,11 @@ func (checker ElementsMatch) checkSortAndLoopPattern(
 	}
 
 	file := pass.Fset.File(stmts[idx].Pos())
-	s0LineStart := file.LineStart(file.Line(stmts[idx].Pos()))
-	s1LineStart := file.LineStart(file.Line(stmts[idx+1].Pos()))
-	s1LineEnd := loop.Pos()
+	firstSortLineStart := file.LineStart(file.Line(stmts[idx].Pos()))
+	secondSortLineStart := file.LineStart(file.Line(stmts[idx+1].Pos()))
+	deleteEndPos := loop.Pos()
 	if nextLine := file.Line(stmts[idx+1].End()) + 1; nextLine <= file.LineCount() {
-		s1LineEnd = file.LineStart(nextLine)
+		deleteEndPos = file.LineStart(nextLine)
 	}
 
 	replaceLoopEdit := analysis.TextEdit{
@@ -239,8 +237,8 @@ func (checker ElementsMatch) checkSortAndLoopPattern(
 	fix := analysis.SuggestedFix{
 		Message: fmt.Sprintf("Replace `%s` with `%s`", loopCall.Fn.Name, proposedFn),
 		TextEdits: []analysis.TextEdit{
-			{Pos: s0LineStart, End: s1LineStart, NewText: []byte{}},
-			{Pos: s1LineStart, End: s1LineEnd, NewText: []byte{}},
+			{Pos: firstSortLineStart, End: secondSortLineStart, NewText: []byte{}},
+			{Pos: secondSortLineStart, End: deleteEndPos, NewText: []byte{}},
 			replaceLoopEdit,
 		},
 	}
@@ -340,6 +338,7 @@ func extractLenArg(pass *analysis.Pass, expr ast.Expr) (ast.Expr, bool) {
 	if !ok || id.Name != "len" {
 		return nil, false
 	}
+	// Ensure this is built-in len, not a shadowed identifier.
 	if obj := pass.TypesInfo.ObjectOf(id); obj != nil && obj.Pkg() != nil {
 		return nil, false
 	}
@@ -442,7 +441,7 @@ func buildElementsMatchCallText(pass *analysis.Pass, call *CallMeta, x, y ast.Ex
 }
 
 func isSortCall(pass *analysis.Pass, ce *ast.CallExpr) bool {
-	return isSlicesSortCall(pass, ce) || isSortSliceCall(pass, ce)
+	return isSlicesSortCall(pass, ce) || isSortPackageSliceCall(pass, ce)
 }
 
 func isSlicesSortCall(pass *analysis.Pass, ce *ast.CallExpr) bool {
@@ -450,7 +449,7 @@ func isSlicesSortCall(pass *analysis.Pass, ce *ast.CallExpr) bool {
 		isPkgFnCall(pass, ce, "golang.org/x/exp/slices", "Sort")
 }
 
-func isSortSliceCall(pass *analysis.Pass, ce *ast.CallExpr) bool {
+func isSortPackageSliceCall(pass *analysis.Pass, ce *ast.CallExpr) bool {
 	return isPkgFnCall(pass, ce, "sort", "Slice")
 }
 

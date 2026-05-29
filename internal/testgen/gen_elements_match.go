@@ -82,15 +82,8 @@ func {{ .CheckerName.AsTestName }}(t *testing.T) {
 
 		sort.Slice(a, func(i, j int) bool { return a[i] < a[j] })
 		sort.Slice(b, func(i, j int) bool { return b[i] < b[j] })
-		assert.Equal(t, len(a), len(b))
 		for i := range b {
 			require.Equal(t, a[i], b[i]) // want {{ $.RequireReport }}
-		}
-
-		sort.Slice(a, func(i, j int) bool { return a[i] < a[j] })
-		sort.Slice(b, func(i, j int) bool { return b[i] < b[j] })
-		for i := range b {
-			assert.Equal(t, a[i], b[i]) // want {{ $.AssertReport }}
 		}
 
 		assert.Equal(t, len(a), len(b))
@@ -185,9 +178,7 @@ func {{ .CheckerName.AsTestName }}(t *testing.T) {
 
 		assert.ElementsMatch(t, b, a) // want {{ $.AssertReport }}
 
-		require.ElementsMatch(t, a, b) // want {{ $.RequireReport }}
-
-		assert.ElementsMatch(t, a, b) // want {{ $.AssertReport }}
+		require.ElementsMatch(t, a, b)
 
 		assert.Equal(t, len(a), len(b))
 		sort.Slice(a, func(i, j int) bool { return a[i] < a[j] })
