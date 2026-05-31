@@ -32,11 +32,11 @@ func Imports(file *ast.File, pkgs ...string) bool {
 			continue
 		}
 
-		path, err := strconv.Unquote(i.Path.Value)
+		importPath, err := strconv.Unquote(i.Path.Value)
 		if err != nil {
 			continue
 		}
-		if slices.Contains(pkgs, path) { // Small O(n).
+		if slices.Contains(pkgs, importPath) { // Small O(n).
 			return true
 		}
 	}

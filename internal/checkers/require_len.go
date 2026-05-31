@@ -13,9 +13,11 @@ import (
 	"github.com/Antonboom/testifylint/internal/testify"
 )
 
-const requireLenForIndexReport = "for length assertions guarding index access use require"
-const requireLenGuardReport = "for indexed access use require.Len guard"
-const defaultIndent = "\t"
+const (
+	requireLenForIndexReport = "for length assertions guarding index access use require"
+	requireLenGuardReport    = "for indexed access use require.Len guard"
+	defaultIndent            = "\t"
+)
 
 // RequireLen checks fail-fast guards for indexed access.
 type RequireLen struct{}
@@ -366,7 +368,7 @@ func hasLenGuard(
 	collection string,
 	requiredLen int,
 ) bool {
-	for i := 0; i < currCallIndex; i++ {
+	for i := range currCallIndex {
 		c := otherCalls[i]
 		if c.parentBlock != currCall.parentBlock || c.testifyCall == nil {
 			continue
