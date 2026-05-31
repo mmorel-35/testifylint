@@ -207,9 +207,9 @@ func newRequireLenGuardDiagnostic(
 
 		additionalEdits := make([]analysis.TextEdit, 0, 2)
 		if !requireImportIsAccessible || requireQualifier == "" {
-			requireQualifier = "required"
+			requireQualifier = availableRequireQualifier(pass.Files, currCall.call.Pos())
 
-			importEdit, hasImportEdit := addRequireAliasImportTextEdit(pass, currCall.call.Pos())
+			importEdit, hasImportEdit := addRequireImportTextEdit(pass, currCall.call.Pos(), requireQualifier)
 			if !hasImportEdit {
 				return diagnostic
 			}
@@ -229,7 +229,7 @@ func newRequireLenGuardDiagnostic(
 		return newDiagnostic(checkerName, currCall.testifyCall, requireLenGuardReport, analysis.SuggestedFix{
 			Message: fixMsg,
 			TextEdits: append(additionalEdits,
-				{
+				analysis.TextEdit{
 					Pos:     exprStmt.Pos(),
 					End:     exprStmt.Pos(),
 					NewText: []byte(insertText),
@@ -240,7 +240,29 @@ func newRequireLenGuardDiagnostic(
 	return nil
 }
 
-func addRequireAliasImportTextEdit(pass *analysis.Pass, pos token.Pos) (analysis.TextEdit, bool) {
+func availableRequireQualifier(files []*ast.File, pos token.Pos) string {
+	file := fileForPos(files, pos)
+	if file == nil {
+		return testify.RequirePkgName
+	}
+
+	for i := 0; ; i++ {
+		qualifier := testify.RequirePkgName
+		if i > 0 {
+			qualifier = fmt.Sprintf("%s%d", testify.RequirePkgName, i+1)
+		}
+		if file.Scope == nil || file.Scope.Lookup(qualifier) == nil {
+			return qualifier
+		}
+	}
+}
+
+func addRequireImportTextEdit(pass *analysis.Pass, pos token.Pos, requireQualifier string) (analysis.TextEdit, bool) {
+	importSpec := fmt.Sprintf("%q", testify.RequirePkgPath)
+	if requireQualifier != testify.RequirePkgName {
+		importSpec = fmt.Sprintf("%s %q", requireQualifier, testify.RequirePkgPath)
+	}
+
 	for _, file := range pass.Files {
 		if file.Pos() > pos || pos > file.End() {
 			continue
@@ -250,8 +272,6 @@ func addRequireAliasImportTextEdit(pass *analysis.Pass, pos token.Pos) (analysis
 			return analysis.TextEdit{}, false
 		}
 
-		importLine := fmt.Sprintf("\trequired %q\n", testify.RequirePkgPath)
-
 		for _, decl := range file.Decls {
 			genDecl, ok := decl.(*ast.GenDecl)
 			if !ok || genDecl.Tok != token.IMPORT {
@@ -259,22 +279,10 @@ func addRequireAliasImportTextEdit(pass *analysis.Pass, pos token.Pos) (analysis
 			}
 
 			if genDecl.Lparen.IsValid() {
-				specs := make([]string, 0, len(genDecl.Specs)+1)
-				for _, spec := range genDecl.Specs {
-					specs = append(specs, analysisutil.NodeString(pass.Fset, spec))
-				}
-				specs = append(specs, fmt.Sprintf("required %q", testify.RequirePkgPath))
-
-				newImportBlock := "import (\n"
-				for _, spec := range specs {
-					newImportBlock += "\t" + spec + "\n"
-				}
-				newImportBlock += ")\n"
-
 				return analysis.TextEdit{
-					Pos:     genDecl.Pos(),
-					End:     genDecl.End(),
-					NewText: []byte(newImportBlock),
+					Pos:     genDecl.Rparen,
+					End:     genDecl.Rparen,
+					NewText: []byte("\t" + importSpec + "\n"),
 				}, true
 			}
 
@@ -283,7 +291,7 @@ func addRequireAliasImportTextEdit(pass *analysis.Pass, pos token.Pos) (analysis
 			}
 
 			existingImport := analysisutil.NodeString(pass.Fset, genDecl.Specs[0])
-			newImportBlock := fmt.Sprintf("import (\n\t%s\n%s)\n", existingImport, importLine)
+			newImportBlock := fmt.Sprintf("import (\n\t%s\n\t%s\n)", existingImport, importSpec)
 			return analysis.TextEdit{
 				Pos:     genDecl.Pos(),
 				End:     genDecl.End(),
@@ -294,11 +302,20 @@ func addRequireAliasImportTextEdit(pass *analysis.Pass, pos token.Pos) (analysis
 		return analysis.TextEdit{
 			Pos:     file.Name.End(),
 			End:     file.Name.End(),
-			NewText: []byte(fmt.Sprintf("\n\nimport required %q\n", testify.RequirePkgPath)),
+			NewText: []byte(fmt.Sprintf("\n\nimport %s\n", importSpec)),
 		}, true
 	}
 
 	return analysis.TextEdit{}, false
+}
+
+func fileForPos(files []*ast.File, pos token.Pos) *ast.File {
+	for _, file := range files {
+		if file.Pos() <= pos && pos <= file.End() {
+			return file
+		}
+	}
+	return nil
 }
 
 type indexedAccess struct {

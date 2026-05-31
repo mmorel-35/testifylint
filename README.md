@@ -994,6 +994,7 @@ Also, to minimize false positives, `require-error` ignores:
 assert.Len(t, arr, 2)
 assert.Positive(t, arr[1])
 
+❌
 assert.Positive(t, arr[1])
 
 ✅

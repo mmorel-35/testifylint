@@ -9,6 +9,31 @@ import (
 	"github.com/Antonboom/testifylint/internal/analysisutil"
 )
 
+func TestPkgBaseName(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		importPath string
+		want       string
+	}{
+		{name: "plain", importPath: "github.com/stretchr/testify/require", want: "require"},
+		{name: "module v2 suffix", importPath: "example.com/pkg/v2", want: "pkg"},
+		{name: "module v1 path segment", importPath: "example.com/v1", want: "v1"},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := analysisutil.PkgBaseName(tt.importPath)
+			if got != tt.want {
+				t.Fatalf("PkgBaseName(%q) = %q, want %q", tt.importPath, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestImports(t *testing.T) {
 	fset := token.NewFileSet()
 
