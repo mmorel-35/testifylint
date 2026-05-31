@@ -46,3 +46,9 @@ func TestLenGuardInsertedUsesGreatestIndex(t *testing.T) {
 
 	assert.Equal(t, arr[0]+arr[2], 2) // want "require-error: for indexed access use require\\.Len guard"
 }
+
+func TestLenGuardInsertedSingleIndexUsesNotEmpty(t *testing.T) {
+	arr := []int{0}
+
+	assert.Positive(t, arr[0]) // want "require-error: for indexed access use require\\.Len guard"
+}

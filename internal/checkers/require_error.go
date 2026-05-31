@@ -370,20 +370,21 @@ func newRequireLenGuardDiagnostic(
 
 	for _, target := range indexedAccesses(pass, currCall.call) {
 		requiredLen := target.maxIndex + 1
-		if hasLenGuard(pass, currCall, currCallIndex, otherCalls, target.collection) {
+		if hasLenGuard(pass, currCall, currCallIndex, otherCalls, target.collection, requiredLen) {
 			continue
 		}
 
 		indent := lineIndentAtPos(pass, currCall.call.Pos(), fileContentCache)
-		insertText := fmt.Sprintf(
-			"require.Len(%s, %s, %d)\n%s",
-			analysisutil.NodeString(pass.Fset, tArg),
-			target.collection,
-			requiredLen,
-			indent,
-		)
+		insertText := fmt.Sprintf("require.Len(%s, %s, %d)\n%s",
+			analysisutil.NodeString(pass.Fset, tArg), target.collection, requiredLen, indent)
+		fixMsg := "Insert `require.Len` guard"
+		if requiredLen == 1 {
+			insertText = fmt.Sprintf("require.NotEmpty(%s, %s)\n%s",
+				analysisutil.NodeString(pass.Fset, tArg), target.collection, indent)
+			fixMsg = "Insert `require.NotEmpty` guard"
+		}
 		return newDiagnostic(checkerName, currCall.testifyCall, requireLenGuardReport, analysis.SuggestedFix{
-			Message: "Insert `require.Len` guard",
+			Message: fixMsg,
 			TextEdits: []analysis.TextEdit{
 				{
 					Pos:     currCall.call.Pos(),
@@ -442,21 +443,33 @@ func hasLenGuard(
 	currCallIndex int,
 	otherCalls []*callMeta,
 	collection string,
+	requiredLen int,
 ) bool {
 	for i := 0; i < currCallIndex; i++ {
 		c := otherCalls[i]
 		if c.parentBlock != currCall.parentBlock || c.testifyCall == nil {
 			continue
 		}
-		if c.testifyCall.Fn.NameFTrimmed != "Len" || len(c.testifyCall.Args) < 2 {
-			continue
+		switch c.testifyCall.Fn.NameFTrimmed {
+		case "Len":
+			if len(c.testifyCall.Args) < 2 {
+				continue
+			}
+			lenCollection := analysisutil.NodeString(pass.Fset, c.testifyCall.Args[0])
+			if lenCollection != collection {
+				continue
+			}
+			return true
+		case "NotEmpty":
+			if requiredLen != 1 || len(c.testifyCall.Args) < 1 {
+				continue
+			}
+			notEmptyCollection := analysisutil.NodeString(pass.Fset, c.testifyCall.Args[0])
+			if notEmptyCollection != collection {
+				continue
+			}
+			return true
 		}
-
-		lenCollection := analysisutil.NodeString(pass.Fset, c.testifyCall.Args[0])
-		if lenCollection != collection {
-			continue
-		}
-		return true
 	}
 	return false
 }
