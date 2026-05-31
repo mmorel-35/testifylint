@@ -201,8 +201,19 @@ func newRequireLenGuardDiagnostic(
 		}
 
 		diagnostic := newDiagnostic(checkerName, currCall.testifyCall, requireLenGuardReport)
-		if !ok || !requireImportIsAccessible || requireQualifier == "" {
+		if !ok {
 			return diagnostic
+		}
+
+		additionalEdits := make([]analysis.TextEdit, 0, 2)
+		if !requireImportIsAccessible || requireQualifier == "" {
+			requireQualifier = "required"
+
+			importEdit, hasImportEdit := addRequireAliasImportTextEdit(pass, currCall.call.Pos())
+			if !hasImportEdit {
+				return diagnostic
+			}
+			additionalEdits = append(additionalEdits, importEdit)
 		}
 
 		tArg := currCall.testifyCall.ArgsRaw[0]
@@ -217,16 +228,65 @@ func newRequireLenGuardDiagnostic(
 		}
 		return newDiagnostic(checkerName, currCall.testifyCall, requireLenGuardReport, analysis.SuggestedFix{
 			Message: fixMsg,
-			TextEdits: []analysis.TextEdit{
+			TextEdits: append(additionalEdits,
 				{
 					Pos:     exprStmt.Pos(),
 					End:     exprStmt.Pos(),
 					NewText: []byte(insertText),
 				},
-			},
+			),
 		})
 	}
 	return nil
+}
+
+func addRequireAliasImportTextEdit(pass *analysis.Pass, pos token.Pos) (analysis.TextEdit, bool) {
+	for _, file := range pass.Files {
+		if file.Pos() > pos || pos > file.End() {
+			continue
+		}
+
+		if analysisutil.Imports(file, testify.RequirePkgPath) {
+			return analysis.TextEdit{}, false
+		}
+
+		importLine := fmt.Sprintf("\trequired %q\n", testify.RequirePkgPath)
+
+		for _, decl := range file.Decls {
+			genDecl, ok := decl.(*ast.GenDecl)
+			if !ok || genDecl.Tok != token.IMPORT {
+				continue
+			}
+
+			if genDecl.Lparen.IsValid() {
+				return analysis.TextEdit{
+					Pos:     genDecl.Rparen,
+					End:     genDecl.Rparen,
+					NewText: []byte(importLine),
+				}, true
+			}
+
+			if len(genDecl.Specs) == 0 {
+				break
+			}
+
+			existingImport := analysisutil.NodeString(pass.Fset, genDecl.Specs[0])
+			newImportBlock := fmt.Sprintf("import (\n\t%s\n%s)\n", existingImport, importLine)
+			return analysis.TextEdit{
+				Pos:     genDecl.Pos(),
+				End:     genDecl.End(),
+				NewText: []byte(newImportBlock),
+			}, true
+		}
+
+		return analysis.TextEdit{
+			Pos:     file.Name.End(),
+			End:     file.Name.End(),
+			NewText: []byte(fmt.Sprintf("\n\nimport required %q\n", testify.RequirePkgPath)),
+		}, true
+	}
+
+	return analysis.TextEdit{}, false
 }
 
 type indexedAccess struct {
