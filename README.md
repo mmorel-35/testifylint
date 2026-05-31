@@ -106,6 +106,7 @@ https://golangci-lint.run/docs/linters/configuration/#testifylint
 | [nil-compare](#nil-compare)                         | ✅                  | ✅       |
 | [regexp](#regexp)                                   | ✅                  | ✅       |
 | [require-error](#require-error)                     | ✅                  | ❌       |
+| [require-len](#require-len)                         | ✅                  | ✅       |
 | [suite-broken-parallel](#suite-broken-parallel)     | ✅                  | ✅       |
 | [suite-dont-use-pkg](#suite-dont-use-pkg)           | ✅                  | ✅       |
 | [suite-extra-assert-call](#suite-extra-assert-call) | ✅                  | ✅       |
@@ -955,16 +956,12 @@ assert.EqualError(t, err, "end of file")
 assert.ErrorContains(t, err, "end of file")
 assert.NoError(t, err)
 assert.NotErrorIs(t, err, io.EOF)
-assert.Len(t, arr, 2)
-assert.Positive(t, arr[1])
 
 ✅
 require.Error(t, err) // s.Require().Error(err), s.Require().Error(err)
 require.ErrorIs(t, err, io.EOF)
 require.ErrorAs(t, err, &target)
 // And so on...
-require.Len(t, arr, 2)
-assert.Positive(t, arr[1])
 ```
 
 **Autofix**: false. <br>
@@ -973,13 +970,6 @@ assert.Positive(t, arr[1])
 
 [testify/require](https://pkg.go.dev/github.com/stretchr/testify@master/require#hdr-Assertions) allows
 to stop test execution when a test fails.
-
-By default `require-error` checks the `*Error*` assertions above, and also `assert.Len*` when a later call indexes
-into the same collection with an index that is smaller than the asserted length (for example `arr[1]` after
-`assert.Len(..., 2)`). <br>
-If an assertion directly uses indexed access (for example `assert.Positive(t, arr[1])`) and no previous `Len` guard
-exists in the same block, the checker also suggests inserting `require.Len(t, arr, 2)` (or `maxIndex + 1`), and
-uses `require.NotEmpty(t, arr)` when the greatest used index is `0`. <br>
 
 You can set `--require-error.fn-pattern` flag to limit the checking to certain calls (but still from the list above).
 For example, `--require-error.fn-pattern="^(Errorf?|NoErrorf?)$"` will only check `Error`, `Errorf`, `NoError`,
@@ -994,6 +984,36 @@ Also, to minimize false positives, `require-error` ignores:
 - assertions in an explicit goroutine (including `http.Handler`);
 - assertions in an explicit testing cleanup function or suite teardown methods;
 - sequence of `NoError` assertions.
+
+---
+
+### require-len
+
+```go
+❌
+assert.Len(t, arr, 2)
+assert.Positive(t, arr[1])
+
+assert.Positive(t, arr[1])
+
+✅
+require.Len(t, arr, 2)
+assert.Positive(t, arr[1])
+```
+
+**Autofix**: true (for direct indexed access assertions). <br>
+**Enabled by default**: true. <br>
+**Reason**: fail-fast guards prevent panic-prone indexed access in tests.
+
+`require-len` checks both:
+
+- `assert.Len*` used as an index guard before indexed access (prefer `require.Len*`);
+- direct indexed assertions without a prior guard in the same block (inserts guard autofix).
+
+For direct indexed assertions, autofix inserts:
+
+- `require.Len(t, collection, maxIndex+1)` based on the greatest literal index used;
+- `require.NotEmpty(t, collection)` when the greatest used index is `0`.
 
 ---
 
