@@ -132,6 +132,9 @@ func shouldRequireLenForIndexedAccess(
 	}
 
 	for i := currCallIndex + 1; i < len(otherCalls); i++ {
+		if otherCalls[i].parentBlock != currCall.parentBlock {
+			continue
+		}
 		if containsIndexedAccess(pass, otherCalls[i].call, collectionStr, requiredLen) {
 			return true
 		}
@@ -178,6 +181,12 @@ func newRequireLenGuardDiagnostic(
 	if !currCall.testifyCall.IsPkg || (len(currCall.testifyCall.ArgsRaw) < 2) {
 		return nil
 	}
+
+	exprStmt, ok := findExprStmtForCall(currCall)
+	if !ok {
+		return newDiagnostic(checkerName, currCall.testifyCall, requireLenGuardReport)
+	}
+
 	tArg := currCall.testifyCall.ArgsRaw[0]
 	if !implementsTestingT(pass, tArg) {
 		return nil
@@ -202,8 +211,8 @@ func newRequireLenGuardDiagnostic(
 			Message: fixMsg,
 			TextEdits: []analysis.TextEdit{
 				{
-					Pos:     currCall.call.Pos(),
-					End:     currCall.call.Pos(),
+					Pos:     exprStmt.Pos(),
+					End:     exprStmt.Pos(),
 					NewText: []byte(insertText),
 				},
 			},
@@ -287,6 +296,40 @@ func hasLenGuard(
 		}
 	}
 	return false
+}
+
+func needToSkipForLenGuardContext(currCall *callMeta, otherCalls []*callMeta) bool {
+	if currCall.inIfCond || currCall.inBoolExpr || currCall.inNoErrorSeq {
+		return true
+	}
+
+	if currCall.rootIf != nil {
+		for _, rootCall := range otherCalls {
+			if (rootCall.rootIf == currCall.rootIf) && rootCall.inIfCond {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+func findExprStmtForCall(currCall *callMeta) (*ast.ExprStmt, bool) {
+	if currCall.parentBlock == nil {
+		return nil, false
+	}
+
+	for _, stmt := range currCall.parentBlock.List {
+		exprStmt, ok := stmt.(*ast.ExprStmt)
+		if !ok {
+			continue
+		}
+		if exprStmt.X == currCall.call {
+			return exprStmt, true
+		}
+	}
+
+	return nil, false
 }
 
 func lineIndentAtPos(pass *analysis.Pass, pos token.Pos, fileContentCache map[string][]byte) string {

@@ -142,22 +142,6 @@ func (checker RequireError) Check(pass *analysis.Pass, insp *inspector.Inspector
 	return diagnostics
 }
 
-func needToSkipForLenGuardContext(currCall *callMeta, otherCalls []*callMeta) bool {
-	if currCall.inIfCond || currCall.inBoolExpr || currCall.inNoErrorSeq {
-		return true
-	}
-
-	if currCall.rootIf != nil {
-		for _, rootCall := range otherCalls {
-			if (rootCall.rootIf == currCall.rootIf) && rootCall.inIfCond {
-				return true
-			}
-		}
-	}
-
-	return false
-}
-
 func needToSkipBasedOnContext(
 	currCall *callMeta,
 	currCallIndex int,

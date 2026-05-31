@@ -55,3 +55,24 @@ func TestLenGuardInsertedSingleIndexUsesNotEmpty(t *testing.T) {
 	require.NotEmpty(t, arr)
 	assert.Positive(t, arr[0]) // want "require-len: for indexed access use require\\.Len guard"
 }
+
+func TestLenGuardDifferentBlock(t *testing.T) {
+	arr := []int{0, 1}
+
+	if true {
+		assert.Len(t, arr, 2)
+	}
+	if true {
+		consumeInt(arr[1])
+	}
+}
+
+func TestLenGuardWithoutAutofixForNestedCall(t *testing.T) {
+	arr := []int{0, 1}
+
+	consumeBool(assert.Positive(t, arr[1])) // want "require-len: for indexed access use require\\.Len guard"
+}
+
+func consumeInt(_ int) {}
+
+func consumeBool(_ bool) {}
