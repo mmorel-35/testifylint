@@ -192,6 +192,10 @@ func TestTestifyLint_NotDefaultCases(t *testing.T) {
 			flags: map[string]string{"disable-all": "true", "enable": checkers.NewRequireError().Name()},
 		},
 		{
+			dir:   "require-len",
+			flags: map[string]string{"disable-all": "true", "enable": checkers.NewRequireLen().Name()},
+		},
+		{
 			dir:   "suite-extra-assert-call-issue176",
 			flags: map[string]string{"disable-all": "true", "enable": checkers.NewSuiteExtraAssertCall().Name()},
 		},

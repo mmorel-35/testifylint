@@ -10,6 +10,34 @@ import (
 	"github.com/Antonboom/testifylint/internal/analysisutil"
 )
 
+func TestPkgBaseName(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		importPath string
+		want       string
+	}{
+		{"net/http", "http"},
+		{"fmt", "fmt"},
+		{"github.com/stretchr/testify/assert", "assert"},
+		{"example.com/pkg/v2", "pkg"},
+		{"example.com/pkg/v10", "pkg"},
+		{"example.com/v2", "example.com"},        // version at top level: falls back to domain
+		{"example.com/mypkg/v2alpha", "v2alpha"}, // not a pure integer suffix
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.importPath, func(t *testing.T) {
+			t.Parallel()
+
+			got := analysisutil.PkgBaseName(tt.importPath)
+			if got != tt.want {
+				t.Errorf("PkgBaseName(%q) = %q, want %q", tt.importPath, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestImports(t *testing.T) {
 	fset := token.NewFileSet()
 
@@ -47,34 +75,6 @@ func TestSimple(t *testing.T) {
 	}
 	if !analysisutil.Imports(f, "github.com/stretchr/testify/assert") {
 		t.FailNow()
-	}
-}
-
-func TestPkgBaseName(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		importPath string
-		want       string
-	}{
-		{"net/http", "http"},
-		{"fmt", "fmt"},
-		{"github.com/stretchr/testify/assert", "assert"},
-		{"example.com/pkg/v2", "pkg"},
-		{"example.com/pkg/v10", "pkg"},
-		{"example.com/v2", "example.com"},        // version at top level: falls back to domain
-		{"example.com/mypkg/v2alpha", "v2alpha"}, // not a pure integer suffix
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.importPath, func(t *testing.T) {
-			t.Parallel()
-
-			got := analysisutil.PkgBaseName(tt.importPath)
-			if got != tt.want {
-				t.Errorf("PkgBaseName(%q) = %q, want %q", tt.importPath, got, tt.want)
-			}
-		})
 	}
 }
 
