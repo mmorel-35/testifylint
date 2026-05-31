@@ -113,8 +113,12 @@ https://golangci-lint.run/docs/linters/configuration/#testifylint
 | [negated-assert](#negated-assert)                   | ✅                  | ✅       |
 | [nil-compare](#nil-compare)                         | ✅                  | ✅       |
 | [regexp](#regexp)                                   | ✅                  | ✅       |
+<<<<<<< HEAD
 | [redundant-assert](#redundant-assert)               | ✅                  | ✅       |
 | [require-error](#require-error)                     | ✅                  | 🤏      |
+=======
+| [require-error](#require-error)                     | ✅                  | ❌       |
+>>>>>>> origin/master
 | [require-len](#require-len)                         | ✅                  | ✅       |
 | [suite-broken-parallel](#suite-broken-parallel)     | ✅                  | ✅       |
 | [suite-dont-use-pkg](#suite-dont-use-pkg)           | ✅                  | ✅       |
@@ -1200,8 +1204,6 @@ require.NoError(t, err2)
 [testify/require](https://pkg.go.dev/github.com/stretchr/testify@master/require#hdr-Assertions) allows
 to stop test execution when a test fails.
 
-By default `require-error` only checks the `*Error*` assertions, presented above. <br>
-
 You can set `--require-error.fn-pattern` flag to limit the checking to certain calls (but still from the list above).
 For example, `--require-error.fn-pattern="^(Errorf?|NoErrorf?)$"` will only check `Error`, `Errorf`, `NoError`,
 and `NoErrorf`.
@@ -1253,6 +1255,37 @@ The checker skips:
 - `else if` branches (would leave a dangling `else`);
 - patterns in goroutines, HTTP handlers, and test cleanup functions;
 - conditions using `&&` (different short-circuit semantics).
+
+---
+
+### require-len
+
+```go
+❌
+assert.Len(t, arr, 2)
+assert.Positive(t, arr[1])
+
+❌
+assert.Positive(t, arr[1])
+
+✅
+require.Len(t, arr, 2)
+assert.Positive(t, arr[1])
+```
+
+**Autofix**: true (for direct indexed access assertions without existing guards). <br>
+**Enabled by default**: true. <br>
+**Reason**: fail-fast guards prevent panic-prone indexed access in tests.
+
+`require-len` checks both:
+
+- `assert.Len*` used as an index guard before indexed access (prefer `require.Len*`);
+- direct indexed assertions without a prior guard in the same block (inserts guard autofix).
+
+For direct indexed assertions, autofix inserts:
+
+- `require.Len(t, collection, maxIndex+1)` based on the greatest literal index used;
+- `require.NotEmpty(t, collection)` when the greatest used index is `0`.
 
 ---
 
