@@ -10,6 +10,7 @@ import (
 	"golang.org/x/tools/go/ast/inspector"
 
 	"github.com/Antonboom/testifylint/internal/analysisutil"
+	"github.com/Antonboom/testifylint/internal/testify"
 )
 
 const requireLenForIndexReport = "for length assertions guarding index access use require"
@@ -178,18 +179,19 @@ func newRequireLenGuardDiagnostic(
 	otherCalls []*callMeta,
 	fileContentCache map[string][]byte,
 ) *analysis.Diagnostic {
-	if !currCall.testifyCall.IsPkg || (len(currCall.testifyCall.ArgsRaw) < 2) {
-		return nil
-	}
-
-	exprStmt, ok := findExprStmtForCall(currCall)
-	if !ok {
-		return newDiagnostic(checkerName, currCall.testifyCall, requireLenGuardReport)
-	}
-
-	tArg := currCall.testifyCall.ArgsRaw[0]
-	if !implementsTestingT(pass, tArg) {
-		return nil
+	var (
+		exprStmt                  *ast.ExprStmt
+		ok                        bool
+		requireQualifier          string
+		requireImportIsAccessible bool
+	)
+	if currCall.testifyCall.IsPkg && (len(currCall.testifyCall.ArgsRaw) >= 2) {
+		tArg := currCall.testifyCall.ArgsRaw[0]
+		if implementsTestingT(pass, tArg) {
+			exprStmt, ok = findExprStmtForCall(currCall)
+			requireQualifier, requireImportIsAccessible = analysisutil.LocalPkgName(
+				pass.Files, currCall.call.Pos(), testify.RequirePkgPath)
+		}
 	}
 
 	for _, target := range indexedAccesses(pass, currCall.call) {
@@ -198,13 +200,19 @@ func newRequireLenGuardDiagnostic(
 			continue
 		}
 
+		diagnostic := newDiagnostic(checkerName, currCall.testifyCall, requireLenGuardReport)
+		if !ok || !requireImportIsAccessible || requireQualifier == "" {
+			return diagnostic
+		}
+
+		tArg := currCall.testifyCall.ArgsRaw[0]
 		indent := lineIndentAtPos(pass, currCall.call.Pos(), fileContentCache)
-		insertText := fmt.Sprintf("require.Len(%s, %s, %d)\n%s",
-			analysisutil.NodeString(pass.Fset, tArg), target.collection, requiredLen, indent)
+		insertText := fmt.Sprintf("%s.Len(%s, %s, %d)\n%s",
+			requireQualifier, analysisutil.NodeString(pass.Fset, tArg), target.collection, requiredLen, indent)
 		fixMsg := "Insert `require.Len` guard"
 		if requiredLen == 1 {
-			insertText = fmt.Sprintf("require.NotEmpty(%s, %s)\n%s",
-				analysisutil.NodeString(pass.Fset, tArg), target.collection, indent)
+			insertText = fmt.Sprintf("%s.NotEmpty(%s, %s)\n%s",
+				requireQualifier, analysisutil.NodeString(pass.Fset, tArg), target.collection, indent)
 			fixMsg = "Insert `require.NotEmpty` guard"
 		}
 		return newDiagnostic(checkerName, currCall.testifyCall, requireLenGuardReport, analysis.SuggestedFix{
@@ -276,6 +284,9 @@ func hasLenGuard(
 		}
 		switch c.testifyCall.Fn.NameFTrimmed {
 		case "Len", "Lenf":
+			if c.testifyCall.IsAssert {
+				continue
+			}
 			if len(c.testifyCall.Args) < 2 {
 				continue
 			}
@@ -283,8 +294,14 @@ func hasLenGuard(
 			if lenCollection != collection {
 				continue
 			}
+			if assertedLen, isBasicLit := isIntBasicLit(c.testifyCall.Args[1]); isBasicLit && (assertedLen < requiredLen) {
+				continue
+			}
 			return true
 		case "NotEmpty":
+			if c.testifyCall.IsAssert {
+				continue
+			}
 			if requiredLen != 1 || len(c.testifyCall.Args) < 1 {
 				continue
 			}

@@ -10,15 +10,15 @@ import (
 func TestLenGuard(t *testing.T) {
 	arr := []int{0, 1}
 
-	assert.Len(t, arr, 2) // want "require-len: for length assertions guarding index access use require"
-	assert.Positive(t, arr[1])
+	assert.Len(t, arr, 2)      // want "require-len: for length assertions guarding index access use require"
+	assert.Positive(t, arr[1]) // want "require-len: for indexed access use require\\.Len guard"
 }
 
 func TestLenGuardf(t *testing.T) {
 	arr := []int{0, 1}
 
 	assert.Lenf(t, arr, 2, "msg") // want "require-len: for length assertions guarding index access use require"
-	assert.Positive(t, arr[1])
+	assert.Positive(t, arr[1])    // want "require-len: for indexed access use require\\.Len guard"
 }
 
 func TestLenGuardRequire(t *testing.T) {
@@ -32,7 +32,7 @@ func TestLenGuardIndexOutOfCheckedRange(t *testing.T) {
 	arr := []int{0, 1}
 
 	assert.Len(t, arr, 2)
-	assert.Positive(t, arr[2])
+	assert.Positive(t, arr[2]) // want "require-len: for indexed access use require\\.Len guard"
 }
 
 func TestLenGuardInsertedFromIndexAccess(t *testing.T) {
@@ -68,6 +68,27 @@ func TestLenGuardWithoutAutofixForNestedCall(t *testing.T) {
 	arr := []int{0, 1}
 
 	consumeBool(assert.Positive(t, arr[1])) // want "require-len: for indexed access use require\\.Len guard"
+}
+
+func TestLenGuardWithAssertionObject(t *testing.T) {
+	arr := []int{0, 1}
+
+	a := assert.New(t)
+	a.Positive(arr[1]) // want "require-len: for indexed access use require\\.Len guard"
+}
+
+func TestLenGuardWithAssertLenOnly(t *testing.T) {
+	arr := []int{0, 1, 2}
+
+	assert.Len(t, arr, 3)      // want "require-len: for length assertions guarding index access use require"
+	assert.Positive(t, arr[2]) // want "require-len: for indexed access use require\\.Len guard"
+}
+
+func TestLenGuardWithInsufficientRequireLen(t *testing.T) {
+	arr := []int{0, 1, 2}
+
+	require.Len(t, arr, 1)
+	assert.Positive(t, arr[2]) // want "require-len: for indexed access use require\\.Len guard"
 }
 
 func consumeInt(_ int) {}
