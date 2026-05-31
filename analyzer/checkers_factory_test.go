@@ -21,6 +21,7 @@ func Test_newCheckers(t *testing.T) {
 		checkers.NewNegativePositive(),
 		checkers.NewCompares(),
 		checkers.NewContains(),
+		checkers.NewErrorCompare(),
 		checkers.NewErrorNil(),
 		checkers.NewNilCompare(),
 		checkers.NewErrorIsAs(),
@@ -29,6 +30,8 @@ func Test_newCheckers(t *testing.T) {
 		checkers.NewLen(),
 		checkers.NewEqualValues(),
 		checkers.NewRegexp(),
+		checkers.NewHTTPMethod(),
+		checkers.NewHTTPStatusCode(),
 		checkers.NewSuiteExtraAssertCall(),
 		checkers.NewSuiteDontUsePkg(),
 		checkers.NewUselessAssert(),
@@ -41,6 +44,7 @@ func Test_newCheckers(t *testing.T) {
 		checkers.NewNegativePositive(),
 		checkers.NewCompares(),
 		checkers.NewContains(),
+		checkers.NewErrorCompare(),
 		checkers.NewErrorNil(),
 		checkers.NewNilCompare(),
 		checkers.NewErrorIsAs(),
@@ -49,6 +53,8 @@ func Test_newCheckers(t *testing.T) {
 		checkers.NewLen(),
 		checkers.NewEqualValues(),
 		checkers.NewRegexp(),
+		checkers.NewHTTPMethod(),
+		checkers.NewHTTPStatusCode(),
 		checkers.NewSuiteExtraAssertCall(),
 		checkers.NewSuiteDontUsePkg(),
 		checkers.NewUselessAssert(),
@@ -56,23 +62,38 @@ func Test_newCheckers(t *testing.T) {
 	}
 
 	enabledByDefaultAdvancedCheckers := []checkers.AdvancedChecker{
+		checkers.NewRedundantAssert(),
+		checkers.NewFailNow(),
 		checkers.NewBlankImport(),
+		checkers.NewEventuallyWithT(),
 		checkers.NewGoRequire(),
+		checkers.NewHTTPMultiple(),
+		checkers.NewNegatedAssert(),
 		checkers.NewRequireError(),
 		checkers.NewRequireLen(),
 		checkers.NewSuiteBrokenParallel(),
 		checkers.NewSuiteMethodSignature(),
 		checkers.NewSuiteSubtestRun(),
+		checkers.NewWrongT(),
 	}
 	allAdvancedCheckers := []checkers.AdvancedChecker{
+		checkers.NewRedundantAssert(),
+		checkers.NewFailNow(),
 		checkers.NewBlankImport(),
+		checkers.NewEventuallyWithT(),
 		checkers.NewGoRequire(),
+		checkers.NewHTTPMultiple(),
+		checkers.NewNegatedAssert(),
 		checkers.NewRequireError(),
 		checkers.NewRequireLen(),
 		checkers.NewSuiteBrokenParallel(),
 		checkers.NewSuiteMethodSignature(),
 		checkers.NewSuiteSubtestRun(),
 		checkers.NewSuiteTHelper(),
+		checkers.NewSuiteTestName(),
+		checkers.NewElementsMatch(),
+		checkers.NewWrongT(),
+		checkers.NewGracefulTeardown(),
 	}
 
 	formatterWithoutEnabledOptions := checkers.RegularChecker(checkers.NewFormatter().
@@ -133,14 +154,18 @@ func Test_newCheckers(t *testing.T) {
 			}),
 		},
 		{
-			name: "enable one checker in addition to enabled by default checkers",
+			name: "enable two non-default checkers in addition to enabled by default checkers",
 			cfg: config.Config{
 				EnabledCheckers: config.KnownCheckersValue{
 					checkers.NewSuiteTHelper().Name(),
+					checkers.NewElementsMatch().Name(),
 				},
 			},
-			expRegular:  replace(enabledByDefaultRegularCheckers, formatterWithoutEnabledOptions),
-			expAdvanced: allAdvancedCheckers,
+			expRegular: replace(enabledByDefaultRegularCheckers, formatterWithoutEnabledOptions),
+			expAdvanced: filter(allAdvancedCheckers, config.KnownCheckersValue{
+				checkers.NewSuiteTestName().Name(),
+				checkers.NewGracefulTeardown().Name(),
+			}),
 		},
 		{
 			name: "disable three checkers from enabled by default checkers",
