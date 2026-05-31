@@ -140,7 +140,7 @@ func (checker RequireError) Check(pass *analysis.Pass, insp *inspector.Inspector
 				diagnostics = append(diagnostics,
 					*newDiagnostic(checker.Name(), c.testifyCall, requireErrorReport))
 
-			case "Len":
+			case "Len", "Lenf":
 				if shouldRequireLenForIndexedAccess(pass, c, i, calls) {
 					diagnostics = append(diagnostics,
 						*newDiagnostic(checker.Name(), c.testifyCall, requireLenForIndexReport))
