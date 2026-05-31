@@ -243,13 +243,13 @@ func newRequireLenGuardDiagnostic(
 func availableRequireQualifier(files []*ast.File, pos token.Pos) string {
 	file := fileForPos(files, pos)
 	if file == nil {
-		return "required"
+		return testify.RequirePkgName
 	}
 
 	for i := 0; ; i++ {
-		qualifier := "required"
+		qualifier := testify.RequirePkgName
 		if i > 0 {
-			qualifier = fmt.Sprintf("%s%d", qualifier, i+1)
+			qualifier = fmt.Sprintf("%s%d", testify.RequirePkgName, i)
 		}
 		if file.Scope == nil || file.Scope.Lookup(qualifier) == nil {
 			return qualifier

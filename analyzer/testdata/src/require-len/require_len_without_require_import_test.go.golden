@@ -4,12 +4,12 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	required "github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/require"
 )
 
 func TestLenGuardWithoutRequireImport(t *testing.T) {
 	arr := []int{0, 1}
 
-	required.Len(t, arr, 2)
+	require.Len(t, arr, 2)
 	assert.Positive(t, arr[1]) // want "require-len: for indexed access use require\\.Len guard"
 }
