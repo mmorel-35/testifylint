@@ -351,7 +351,7 @@ func findExprStmtForCall(currCall *callMeta) (*ast.ExprStmt, bool) {
 
 func lineIndentAtPos(pass *analysis.Pass, pos token.Pos, fileContentCache map[string][]byte) string {
 	p := pass.Fset.PositionFor(pos, false)
-	if (p.Filename == "") || (p.Offset < 0) {
+	if p.Filename == "" || p.Offset < 0 {
 		return defaultIndent
 	}
 
@@ -371,7 +371,7 @@ func lineIndentAtPos(pass *analysis.Pass, pos token.Pos, fileContentCache map[st
 	lineStart := p.Offset
 	for lineStart > 0 {
 		b := content[lineStart-1]
-		if (b == '\n') || (b == '\r') {
+		if b == '\n' || b == '\r' {
 			break
 		}
 		lineStart--
@@ -380,7 +380,7 @@ func lineIndentAtPos(pass *analysis.Pass, pos token.Pos, fileContentCache map[st
 	lineIndentEnd := lineStart
 	for lineIndentEnd < len(content) {
 		b := content[lineIndentEnd]
-		if (b != ' ') && (b != '\t') {
+		if b != ' ' && b != '\t' {
 			break
 		}
 		lineIndentEnd++
