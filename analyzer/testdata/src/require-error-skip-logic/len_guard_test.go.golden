@@ -38,11 +38,13 @@ func TestLenGuardIndexOutOfCheckedRange(t *testing.T) {
 func TestLenGuardInsertedFromIndexAccess(t *testing.T) {
 	arr := []int{0, 1}
 
+	require.Len(t, arr, 2)
 	assert.Positive(t, arr[1]) // want "require-error: for indexed access use require\\.Len guard"
 }
 
 func TestLenGuardInsertedUsesGreatestIndex(t *testing.T) {
 	arr := []int{0, 1, 2}
 
+	require.Len(t, arr, 3)
 	assert.Equal(t, arr[0]+arr[2], 2) // want "require-error: for indexed access use require\\.Len guard"
 }

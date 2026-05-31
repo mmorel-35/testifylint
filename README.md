@@ -977,6 +977,8 @@ to stop test execution when a test fails.
 By default `require-error` checks the `*Error*` assertions above, and also `assert.Len*` when a later call indexes
 into the same collection with an index that is smaller than the asserted length (for example `arr[1]` after
 `assert.Len(..., 2)`). <br>
+If an assertion directly uses indexed access (for example `assert.Positive(t, arr[1])`) and no previous `Len` guard
+exists in the same block, the checker also suggests inserting `require.Len(t, arr, 2)` (or `maxIndex + 1`). <br>
 
 You can set `--require-error.fn-pattern` flag to limit the checking to certain calls (but still from the list above).
 For example, `--require-error.fn-pattern="^(Errorf?|NoErrorf?)$"` will only check `Error`, `Errorf`, `NoError`,

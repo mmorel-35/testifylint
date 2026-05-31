@@ -1,7 +1,10 @@
 package checkers
 
 import (
+	"fmt"
 	"go/ast"
+	"go/token"
+	"os"
 	"regexp"
 
 	"golang.org/x/tools/go/analysis"
@@ -12,6 +15,8 @@ import (
 
 const requireErrorReport = "for error assertions use require"
 const requireLenForIndexReport = "for length assertions guarding index access use require"
+const requireLenGuardReport = "for indexed access use require.Len guard"
+const defaultIndent = "\t"
 
 // RequireError detects error assertions like
 //
@@ -105,6 +110,7 @@ func (checker RequireError) Check(pass *analysis.Pass, insp *inspector.Inspector
 	var diagnostics []analysis.Diagnostic
 
 	callsByBlock := map[*ast.BlockStmt][]*callMeta{}
+	fileContentCache := make(map[string][]byte)
 	for _, calls := range callsByFunc {
 		for _, c := range calls {
 			if b := c.parentBlock; b != nil {
@@ -127,12 +133,14 @@ func (checker RequireError) Check(pass *analysis.Pass, insp *inspector.Inspector
 			if !c.testifyCall.IsAssert {
 				continue
 			}
-			if needToSkipBasedOnContext(c, i, calls, callsByBlock) {
-				continue
-			}
+			skipMainRules := needToSkipBasedOnContext(c, i, calls, callsByBlock)
+			skipLenGuardRule := needToSkipForLenGuardContext(c, calls)
 
 			switch c.testifyCall.Fn.NameFTrimmed {
 			case "Error", "ErrorIs", "ErrorAs", "EqualError", "ErrorContains", "NoError", "NotErrorIs":
+				if skipMainRules {
+					continue
+				}
 				if p := checker.fnPattern; p != nil && !p.MatchString(c.testifyCall.Fn.Name) {
 					continue
 				}
@@ -141,15 +149,43 @@ func (checker RequireError) Check(pass *analysis.Pass, insp *inspector.Inspector
 					*newDiagnostic(checker.Name(), c.testifyCall, requireErrorReport))
 
 			case "Len", "Lenf":
+				if skipMainRules {
+					continue
+				}
 				if shouldRequireLenForIndexedAccess(pass, c, i, calls) {
 					diagnostics = append(diagnostics,
 						*newDiagnostic(checker.Name(), c.testifyCall, requireLenForIndexReport))
 				}
+
+			default:
+				if skipLenGuardRule {
+					continue
+				}
+				if d := newRequireLenGuardDiagnostic(pass, checker.Name(), c, i, calls, fileContentCache); d != nil {
+					diagnostics = append(diagnostics, *d)
+				}
 			}
+
 		}
 	}
 
 	return diagnostics
+}
+
+func needToSkipForLenGuardContext(currCall *callMeta, otherCalls []*callMeta) bool {
+	if currCall.inIfCond || currCall.inBoolExpr || currCall.inNoErrorSeq {
+		return true
+	}
+
+	if currCall.rootIf != nil {
+		for _, rootCall := range otherCalls {
+			if (rootCall.rootIf == currCall.rootIf) && rootCall.inIfCond {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 func needToSkipBasedOnContext(
@@ -314,4 +350,157 @@ func containsIndexedAccess(pass *analysis.Pass, node ast.Node, collection string
 	})
 
 	return found
+}
+
+func newRequireLenGuardDiagnostic(
+	pass *analysis.Pass,
+	checkerName string,
+	currCall *callMeta,
+	currCallIndex int,
+	otherCalls []*callMeta,
+	fileContentCache map[string][]byte,
+) *analysis.Diagnostic {
+	if !currCall.testifyCall.IsPkg || (len(currCall.testifyCall.ArgsRaw) < 2) {
+		return nil
+	}
+	tArg := currCall.testifyCall.ArgsRaw[0]
+	if !implementsTestingT(pass, tArg) {
+		return nil
+	}
+
+	for _, target := range indexedAccesses(pass, currCall.call) {
+		requiredLen := target.maxIndex + 1
+		if hasLenGuard(pass, currCall, currCallIndex, otherCalls, target.collection) {
+			continue
+		}
+
+		indent := lineIndentAtPos(pass, currCall.call.Pos(), fileContentCache)
+		insertText := fmt.Sprintf(
+			"require.Len(%s, %s, %d)\n%s",
+			analysisutil.NodeString(pass.Fset, tArg),
+			target.collection,
+			requiredLen,
+			indent,
+		)
+		return newDiagnostic(checkerName, currCall.testifyCall, requireLenGuardReport, analysis.SuggestedFix{
+			Message: "Insert `require.Len` guard",
+			TextEdits: []analysis.TextEdit{
+				{
+					Pos:     currCall.call.Pos(),
+					End:     currCall.call.Pos(),
+					NewText: []byte(insertText),
+				},
+			},
+		})
+	}
+	return nil
+}
+
+type indexedAccess struct {
+	collection string
+	maxIndex   int
+}
+
+func indexedAccesses(pass *analysis.Pass, node ast.Node) []indexedAccess {
+	var result []indexedAccess
+	indexByCollection := make(map[string]int)
+
+	ast.Inspect(node, func(n ast.Node) bool {
+		ie, ok := n.(*ast.IndexExpr)
+		if !ok {
+			return true
+		}
+
+		idx, ok := isIntBasicLit(ie.Index)
+		if !ok || idx < 0 {
+			return true
+		}
+
+		collection := analysisutil.NodeString(pass.Fset, ie.X)
+		if collection == "" {
+			return true
+		}
+
+		i, exists := indexByCollection[collection]
+		if !exists {
+			indexByCollection[collection] = len(result)
+			result = append(result, indexedAccess{collection: collection, maxIndex: idx})
+			return true
+		}
+		if idx > result[i].maxIndex {
+			result[i].maxIndex = idx
+		}
+		return true
+	})
+
+	return result
+}
+
+func hasLenGuard(
+	pass *analysis.Pass,
+	currCall *callMeta,
+	currCallIndex int,
+	otherCalls []*callMeta,
+	collection string,
+) bool {
+	for i := 0; i < currCallIndex; i++ {
+		c := otherCalls[i]
+		if c.parentBlock != currCall.parentBlock || c.testifyCall == nil {
+			continue
+		}
+		if c.testifyCall.Fn.NameFTrimmed != "Len" || len(c.testifyCall.Args) < 2 {
+			continue
+		}
+
+		lenCollection := analysisutil.NodeString(pass.Fset, c.testifyCall.Args[0])
+		if lenCollection != collection {
+			continue
+		}
+		return true
+	}
+	return false
+}
+
+func lineIndentAtPos(pass *analysis.Pass, pos token.Pos, fileContentCache map[string][]byte) string {
+	p := pass.Fset.PositionFor(pos, false)
+	if (p.Filename == "") || (p.Offset < 0) {
+		return defaultIndent
+	}
+
+	content, ok := fileContentCache[p.Filename]
+	if !ok {
+		var err error
+		content, err = os.ReadFile(p.Filename)
+		if err != nil {
+			return defaultIndent
+		}
+		fileContentCache[p.Filename] = content
+	}
+	if p.Offset > len(content) {
+		return defaultIndent
+	}
+
+	lineStart := p.Offset
+	for lineStart > 0 {
+		b := content[lineStart-1]
+		if (b == '\n') || (b == '\r') {
+			break
+		}
+		lineStart--
+	}
+
+	lineIndentEnd := lineStart
+	for lineIndentEnd < len(content) {
+		b := content[lineIndentEnd]
+		if (b != ' ') && (b != '\t') {
+			break
+		}
+		lineIndentEnd++
+	}
+
+	if lineIndentEnd == lineStart {
+		return defaultIndent
+	}
+
+	return string(content[lineStart:lineIndentEnd])
 }
