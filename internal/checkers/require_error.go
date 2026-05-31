@@ -123,9 +123,10 @@ func (checker RequireError) Check(pass *analysis.Pass, insp *inspector.Inspector
 			if needToSkipBasedOnContext(c, i, calls, callsByBlock) {
 				continue
 			}
-			switch c.testifyCall.Fn.NameFTrimmed {
-			case "Error", "ErrorIs", "ErrorAs", "EqualError", "ErrorContains", "NoError", "NotErrorIs":
-			default:
+			fn := c.testifyCall.Fn.NameFTrimmed
+			if (fn != "Error") && (fn != "ErrorIs") && (fn != "ErrorAs") &&
+				(fn != "EqualError") && (fn != "ErrorContains") &&
+				(fn != "NoError") && (fn != "NotErrorIs") {
 				continue
 			}
 			if p := checker.fnPattern; p != nil && !p.MatchString(c.testifyCall.Fn.Name) {
