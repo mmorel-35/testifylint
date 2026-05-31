@@ -1200,6 +1200,8 @@ require.NoError(t, err2)
 [testify/require](https://pkg.go.dev/github.com/stretchr/testify@master/require#hdr-Assertions) allows
 to stop test execution when a test fails.
 
+By default `require-error` only checks the `*Error*` assertions, presented above. <br>
+
 You can set `--require-error.fn-pattern` flag to limit the checking to certain calls (but still from the list above).
 For example, `--require-error.fn-pattern="^(Errorf?|NoErrorf?)$"` will only check `Error`, `Errorf`, `NoError`,
 and `NoErrorf`.
