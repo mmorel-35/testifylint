@@ -259,10 +259,22 @@ func addRequireAliasImportTextEdit(pass *analysis.Pass, pos token.Pos) (analysis
 			}
 
 			if genDecl.Lparen.IsValid() {
+				specs := make([]string, 0, len(genDecl.Specs)+1)
+				for _, spec := range genDecl.Specs {
+					specs = append(specs, analysisutil.NodeString(pass.Fset, spec))
+				}
+				specs = append(specs, fmt.Sprintf("required %q", testify.RequirePkgPath))
+
+				newImportBlock := "import (\n"
+				for _, spec := range specs {
+					newImportBlock += "\t" + spec + "\n"
+				}
+				newImportBlock += ")\n"
+
 				return analysis.TextEdit{
-					Pos:     genDecl.Rparen,
-					End:     genDecl.Rparen,
-					NewText: []byte(importLine),
+					Pos:     genDecl.Pos(),
+					End:     genDecl.End(),
+					NewText: []byte(newImportBlock),
 				}, true
 			}
 
