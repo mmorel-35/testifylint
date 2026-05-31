@@ -29,6 +29,7 @@ var registry = checkersRegistry{
 	{factory: asCheckerFactory(NewBlankImport), enabledByDefault: true},
 	{factory: asCheckerFactory(NewGoRequire), enabledByDefault: true},
 	{factory: asCheckerFactory(NewRequireError), enabledByDefault: true},
+	{factory: asCheckerFactory(NewRequireLen), enabledByDefault: true},
 	{factory: asCheckerFactory(NewSuiteBrokenParallel), enabledByDefault: true},
 	{factory: asCheckerFactory(NewSuiteMethodSignature), enabledByDefault: true},
 	{factory: asCheckerFactory(NewSuiteSubtestRun), enabledByDefault: true},
