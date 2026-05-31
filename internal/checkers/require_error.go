@@ -6,9 +6,12 @@ import (
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/ast/inspector"
+
+	"github.com/Antonboom/testifylint/internal/analysisutil"
 )
 
 const requireErrorReport = "for error assertions use require"
+const requireLenForIndexReport = "for length assertions guarding index access use require"
 
 // RequireError detects error assertions like
 //
@@ -19,6 +22,8 @@ const requireErrorReport = "for error assertions use require"
 //	assert.ErrorContains(t, err, "end of file")
 //	assert.NoError(t, err)
 //	assert.NotErrorIs(t, err, io.EOF)
+//	assert.Len(t, arr, 2)
+//	assert.Positive(t, arr[1])
 //
 // and requires
 //
@@ -26,6 +31,8 @@ const requireErrorReport = "for error assertions use require"
 //	require.ErrorIs(t, err, io.EOF)
 //	require.ErrorAs(t, err, &target)
 //	...
+//	require.Len(t, arr, 2)
+//	assert.Positive(t, arr[1])
 //
 // RequireError ignores:
 // - assertions in the `if` condition;
@@ -120,21 +127,25 @@ func (checker RequireError) Check(pass *analysis.Pass, insp *inspector.Inspector
 			if !c.testifyCall.IsAssert {
 				continue
 			}
-			switch c.testifyCall.Fn.NameFTrimmed {
-			default:
-				continue
-			case "Error", "ErrorIs", "ErrorAs", "EqualError", "ErrorContains", "NoError", "NotErrorIs":
-			}
-
 			if needToSkipBasedOnContext(c, i, calls, callsByBlock) {
 				continue
 			}
-			if p := checker.fnPattern; p != nil && !p.MatchString(c.testifyCall.Fn.Name) {
-				continue
-			}
 
-			diagnostics = append(diagnostics,
-				*newDiagnostic(checker.Name(), c.testifyCall, requireErrorReport))
+			switch c.testifyCall.Fn.NameFTrimmed {
+			case "Error", "ErrorIs", "ErrorAs", "EqualError", "ErrorContains", "NoError", "NotErrorIs":
+				if p := checker.fnPattern; p != nil && !p.MatchString(c.testifyCall.Fn.Name) {
+					continue
+				}
+
+				diagnostics = append(diagnostics,
+					*newDiagnostic(checker.Name(), c.testifyCall, requireErrorReport))
+
+			case "Len":
+				if shouldRequireLenForIndexedAccess(pass, c, i, calls) {
+					diagnostics = append(diagnostics,
+						*newDiagnostic(checker.Name(), c.testifyCall, requireLenForIndexReport))
+				}
+			}
 		}
 	}
 
@@ -246,4 +257,61 @@ type callMeta struct {
 
 func isNoErrorAssertion(fnName string) bool {
 	return (fnName == "NoError") || (fnName == "NoErrorf")
+}
+
+func shouldRequireLenForIndexedAccess(
+	pass *analysis.Pass,
+	currCall *callMeta,
+	currCallIndex int,
+	otherCalls []*callMeta,
+) bool {
+	if len(currCall.testifyCall.Args) < 2 {
+		return false
+	}
+
+	collectionExpr := currCall.testifyCall.Args[0]
+	requiredLen, ok := isIntBasicLit(currCall.testifyCall.Args[1])
+	if !ok || requiredLen <= 0 {
+		return false
+	}
+
+	collectionStr := analysisutil.NodeString(pass.Fset, collectionExpr)
+	if collectionStr == "" {
+		return false
+	}
+
+	for i := currCallIndex + 1; i < len(otherCalls); i++ {
+		if containsIndexedAccess(pass, otherCalls[i].call, collectionStr, requiredLen) {
+			return true
+		}
+	}
+	return false
+}
+
+func containsIndexedAccess(pass *analysis.Pass, node ast.Node, collection string, requiredLen int) bool {
+	var found bool
+
+	ast.Inspect(node, func(n ast.Node) bool {
+		if found {
+			return false
+		}
+
+		ie, ok := n.(*ast.IndexExpr)
+		if !ok {
+			return true
+		}
+
+		idx, ok := isIntBasicLit(ie.Index)
+		if !ok || idx < 0 || idx >= requiredLen {
+			return true
+		}
+
+		if analysisutil.NodeString(pass.Fset, ie.X) == collection {
+			found = true
+			return false
+		}
+		return true
+	})
+
+	return found
 }

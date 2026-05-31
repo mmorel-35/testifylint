@@ -955,12 +955,16 @@ assert.EqualError(t, err, "end of file")
 assert.ErrorContains(t, err, "end of file")
 assert.NoError(t, err)
 assert.NotErrorIs(t, err, io.EOF)
+assert.Len(t, arr, 2)
+assert.Positive(t, arr[1])
 
 ✅
 require.Error(t, err) // s.Require().Error(err), s.Require().Error(err)
 require.ErrorIs(t, err, io.EOF)
 require.ErrorAs(t, err, &target)
 // And so on...
+require.Len(t, arr, 2)
+assert.Positive(t, arr[1])
 ```
 
 **Autofix**: false. <br>
@@ -970,7 +974,8 @@ require.ErrorAs(t, err, &target)
 [testify/require](https://pkg.go.dev/github.com/stretchr/testify@master/require#hdr-Assertions) allows
 to stop test execution when a test fails.
 
-By default `require-error` only checks the `*Error*` assertions, presented above. <br>
+By default `require-error` checks the `*Error*` assertions above, and also `assert.Len*` when a later call indexes
+into the same collection with an index guarded by that length assertion (for example `arr[1]` after `assert.Len(..., 2)`). <br>
 
 You can set `--require-error.fn-pattern` flag to limit the checking to certain calls (but still from the list above).
 For example, `--require-error.fn-pattern="^(Errorf?|NoErrorf?)$"` will only check `Error`, `Errorf`, `NoError`,
