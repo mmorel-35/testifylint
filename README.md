@@ -1001,7 +1001,7 @@ require.Len(t, arr, 2)
 assert.Positive(t, arr[1])
 ```
 
-**Autofix**: true (for direct indexed access assertions). <br>
+**Autofix**: true (for direct indexed access assertions without existing guards). <br>
 **Enabled by default**: true. <br>
 **Reason**: fail-fast guards prevent panic-prone indexed access in tests.
 

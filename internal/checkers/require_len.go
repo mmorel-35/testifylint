@@ -266,7 +266,7 @@ func hasLenGuard(
 			continue
 		}
 		switch c.testifyCall.Fn.NameFTrimmed {
-		case "Len":
+		case "Len", "Lenf":
 			if len(c.testifyCall.Args) < 2 {
 				continue
 			}
