@@ -120,13 +120,13 @@ func (checker RequireError) Check(pass *analysis.Pass, insp *inspector.Inspector
 			if !c.testifyCall.IsAssert {
 				continue
 			}
-			if needToSkipBasedOnContext(c, i, calls, callsByBlock) {
+			switch c.testifyCall.Fn.NameFTrimmed {
+			default:
 				continue
+			case "Error", "ErrorIs", "ErrorAs", "EqualError", "ErrorContains", "NoError", "NotErrorIs":
 			}
-			fn := c.testifyCall.Fn.NameFTrimmed
-			if (fn != "Error") && (fn != "ErrorIs") && (fn != "ErrorAs") &&
-				(fn != "EqualError") && (fn != "ErrorContains") &&
-				(fn != "NoError") && (fn != "NotErrorIs") {
+
+			if needToSkipBasedOnContext(c, i, calls, callsByBlock) {
 				continue
 			}
 			if p := checker.fnPattern; p != nil && !p.MatchString(c.testifyCall.Fn.Name) {
@@ -135,7 +135,6 @@ func (checker RequireError) Check(pass *analysis.Pass, insp *inspector.Inspector
 
 			diagnostics = append(diagnostics,
 				*newDiagnostic(checker.Name(), c.testifyCall, requireErrorReport))
-
 		}
 	}
 
