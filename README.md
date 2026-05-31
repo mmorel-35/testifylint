@@ -113,12 +113,8 @@ https://golangci-lint.run/docs/linters/configuration/#testifylint
 | [negated-assert](#negated-assert)                   | ✅                  | ✅       |
 | [nil-compare](#nil-compare)                         | ✅                  | ✅       |
 | [regexp](#regexp)                                   | ✅                  | ✅       |
-<<<<<<< HEAD
 | [redundant-assert](#redundant-assert)               | ✅                  | ✅       |
 | [require-error](#require-error)                     | ✅                  | 🤏      |
-=======
-| [require-error](#require-error)                     | ✅                  | ❌       |
->>>>>>> origin/master
 | [require-len](#require-len)                         | ✅                  | ✅       |
 | [suite-broken-parallel](#suite-broken-parallel)     | ✅                  | ✅       |
 | [suite-dont-use-pkg](#suite-dont-use-pkg)           | ✅                  | ✅       |
