@@ -463,7 +463,7 @@ func hasLenGuard(
 	collection string,
 	requiredLen int,
 ) bool {
-	for i := range currCallIndex {
+	for i := guardSearchStartIndex(currCall, currCallIndex, otherCalls); i < currCallIndex; i++ {
 		c := otherCalls[i]
 		if c.parentBlock != currCall.parentBlock || c.testifyCall == nil || c.testifyCall.IsAssert {
 			continue
@@ -512,7 +512,7 @@ func hasContainsGuard(
 	collection string,
 	key string,
 ) bool {
-	for i := range currCallIndex {
+	for i := guardSearchStartIndex(currCall, currCallIndex, otherCalls); i < currCallIndex; i++ {
 		c := otherCalls[i]
 		if c.parentBlock != currCall.parentBlock || c.testifyCall == nil || c.testifyCall.IsAssert {
 			continue
@@ -528,6 +528,28 @@ func hasContainsGuard(
 		if containsKey == key {
 			return true
 		}
+	}
+	return false
+}
+
+func guardSearchStartIndex(currCall *callMeta, currCallIndex int, otherCalls []*callMeta) int {
+	start := 0
+	for i := 0; i < currCallIndex; i++ {
+		c := otherCalls[i]
+		if c.parentBlock != currCall.parentBlock || c.testifyCall == nil {
+			continue
+		}
+		if isRequireLenErrorCheck(c.testifyCall.Fn.NameFTrimmed) {
+			start = i + 1
+		}
+	}
+	return start
+}
+
+func isRequireLenErrorCheck(nameFTrimmed string) bool {
+	switch nameFTrimmed {
+	case "Error", "ErrorIs", "ErrorAs", "EqualError", "ErrorContains", "NoError", "NotErrorIs":
+		return true
 	}
 	return false
 }
