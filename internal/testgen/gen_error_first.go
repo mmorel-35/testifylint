@@ -88,19 +88,19 @@ func {{ .CheckerName.AsTestName }}(t *testing.T) {
 		_ = err2
 	}
 
-	// Invalid: three return values (int, string, error); error not checked.
+	// Invalid: three return values (int, string, error); report only first result assertion.
 	{
 		res, msg, err := resultAndErrAndMore()
 		assert.NotNil(t, res)  // want "{{ .ReportNotFirst }}"
-		assert.NotEmpty(t, msg) // want "{{ .ReportNotFirst }}"
+		assert.NotEmpty(t, msg)
 		_ = err
 	}
 
-	// Invalid: error discarded, both result vars flagged.
+	// Invalid: error discarded; report only first result assertion.
 	{
 		res, msg, _ := resultAndErrAndMore()
 		assert.NotNil(t, res)   // want "{{ .ReportDiscarded }}"
-		assert.NotEmpty(t, msg) // want "{{ .ReportDiscarded }}"
+		assert.NotEmpty(t, msg)
 	}
 
 	// Valid: error checked first with require.NoError.

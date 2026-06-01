@@ -222,6 +222,7 @@ func (checker ErrorFirst) Check(pass *analysis.Pass, insp *inspector.Inspector) 
 		if len(fa.resultToAssign) == 0 {
 			continue
 		}
+		reportedAssigns := make(map[*errorFirstAssignInfo]struct{})
 
 		for _, c := range calls {
 			if c.testifyCall == nil {
@@ -253,6 +254,9 @@ func (checker ErrorFirst) Check(pass *analysis.Pass, insp *inspector.Inspector) 
 				if !exists {
 					continue
 				}
+				if _, reported := reportedAssigns[info]; reported {
+					continue
+				}
 
 				// The result variable must have been assigned before this call
 				// and in an enclosing or equal block.
@@ -265,11 +269,13 @@ func (checker ErrorFirst) Check(pass *analysis.Pass, insp *inspector.Inspector) 
 						checker.Name(), c.testifyCall,
 						"error return value was discarded; assert the error before asserting the result",
 					))
+					reportedAssigns[info] = struct{}{}
 				} else if !errorFirstIsErrChecked(pass, info, c, calls) {
 					diagnostics = append(diagnostics, *newDiagnostic(
 						checker.Name(), c.testifyCall,
 						"assert error before making other assertions",
 					))
+					reportedAssigns[info] = struct{}{}
 				}
 				// Only report once per assertion call.
 				break

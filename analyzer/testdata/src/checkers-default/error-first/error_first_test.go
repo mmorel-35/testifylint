@@ -46,19 +46,19 @@ func TestErrorFirstChecker(t *testing.T) {
 		_ = err2
 	}
 
-	// Invalid: three return values (int, string, error); error not checked.
+	// Invalid: three return values (int, string, error); report only first result assertion.
 	{
 		res, msg, err := resultAndErrAndMore()
-		assert.NotNil(t, res)   // want "error-first: assert error before making other assertions"
-		assert.NotEmpty(t, msg) // want "error-first: assert error before making other assertions"
+		assert.NotNil(t, res) // want "error-first: assert error before making other assertions"
+		assert.NotEmpty(t, msg)
 		_ = err
 	}
 
-	// Invalid: error discarded, both result vars flagged.
+	// Invalid: error discarded; report only first result assertion.
 	{
 		res, msg, _ := resultAndErrAndMore()
-		assert.NotNil(t, res)   // want "error-first: error return value was discarded; assert the error before asserting the result"
-		assert.NotEmpty(t, msg) // want "error-first: error return value was discarded; assert the error before asserting the result"
+		assert.NotNil(t, res) // want "error-first: error return value was discarded; assert the error before asserting the result"
+		assert.NotEmpty(t, msg)
 	}
 
 	// Valid: error checked first with require.NoError.
