@@ -129,6 +129,24 @@ func TestContainsGuardMustBeAfterErrorCheck(t *testing.T) {
 	assert.Equal(t, m[1], "v") // want "require-len: for indexed access use require\\.Len guard"
 }
 
+func TestLenGuardMustBeAfterEqualErrCheck(t *testing.T) {
+	arr := []int{0, 1}
+	err := consumeErr()
+
+	require.GreaterOrEqual(t, len(arr), 2)
+	assert.Equal(t, nil, err)
+	assert.Positive(t, arr[1]) // want "require-len: for indexed access use require\\.Len guard"
+}
+
+func TestContainsGuardMustBeAfterNilErrCheck(t *testing.T) {
+	var m map[int]string
+	err := consumeErr()
+
+	require.Contains(t, m, 1)
+	assert.Nil(t, err)
+	assert.Equal(t, m[1], "v") // want "require-len: for indexed access use require\\.Len guard"
+}
+
 func consumeInt(_ int) {}
 
 func consumeBool(_ bool) {}

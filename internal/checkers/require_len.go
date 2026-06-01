@@ -463,7 +463,7 @@ func hasLenGuard(
 	collection string,
 	requiredLen int,
 ) bool {
-	for i := guardSearchStartIndex(currCall, currCallIndex, otherCalls); i < currCallIndex; i++ {
+	for i := guardSearchStartIndex(pass, currCall, currCallIndex, otherCalls); i < currCallIndex; i++ {
 		c := otherCalls[i]
 		if c.parentBlock != currCall.parentBlock || c.testifyCall == nil || c.testifyCall.IsAssert {
 			continue
@@ -512,7 +512,7 @@ func hasContainsGuard(
 	collection string,
 	key string,
 ) bool {
-	for i := guardSearchStartIndex(currCall, currCallIndex, otherCalls); i < currCallIndex; i++ {
+	for i := guardSearchStartIndex(pass, currCall, currCallIndex, otherCalls); i < currCallIndex; i++ {
 		c := otherCalls[i]
 		if c.parentBlock != currCall.parentBlock || c.testifyCall == nil || c.testifyCall.IsAssert {
 			continue
@@ -532,14 +532,14 @@ func hasContainsGuard(
 	return false
 }
 
-func guardSearchStartIndex(currCall *callMeta, currCallIndex int, otherCalls []*callMeta) int {
+func guardSearchStartIndex(pass *analysis.Pass, currCall *callMeta, currCallIndex int, otherCalls []*callMeta) int {
 	start := 0
 	for i := 0; i < currCallIndex; i++ {
 		c := otherCalls[i]
 		if c.parentBlock != currCall.parentBlock || c.testifyCall == nil {
 			continue
 		}
-		if isRequireLenErrorCheck(c.testifyCall.Fn.NameFTrimmed) {
+		if isRequireLenErrorCheck(c.testifyCall.Fn.NameFTrimmed) || callContainsErrorArg(pass, c.testifyCall) {
 			start = i + 1
 		}
 	}
@@ -552,6 +552,58 @@ func isRequireLenErrorCheck(nameFTrimmed string) bool {
 		return true
 	}
 	return false
+}
+
+// callContainsErrorArg returns true if any non-message/args argument in the
+// testify call has an error type. This covers cases like assert.Equal(t, err, nil)
+// or assert.Nil(t, err) where the error is outside of msg and args.
+func callContainsErrorArg(pass *analysis.Pass, cm *CallMeta) bool {
+	limit := nonMessageArgLimit(pass, cm)
+	for _, arg := range cm.Args[:limit] {
+		t := pass.TypesInfo.TypeOf(arg)
+		if t == nil {
+			continue
+		}
+		if types.Implements(t, errorIface) || types.Implements(types.NewPointer(t), errorIface) {
+			return true
+		}
+	}
+	return false
+}
+
+// nonMessageArgLimit returns the number of non-message/args arguments in a
+// testify call. Message/format arguments are at the end (variadic msgAndArgs
+// or explicit msgfmt+args for formatted variants).
+func nonMessageArgLimit(pass *analysis.Pass, cm *CallMeta) int {
+	sig := cm.Fn.Signature
+	if sig == nil {
+		return len(cm.Args)
+	}
+
+	paramsLen := sig.Params().Len()
+	if len(cm.ArgsRaw) > 0 && implementsTestingT(pass, cm.ArgsRaw[0]) {
+		paramsLen--
+	}
+	if paramsLen < 0 {
+		return 0
+	}
+
+	limit := len(cm.Args)
+	if sig.Variadic() {
+		// Variadic parameter is msgAndArgs; base assertion args are fixed params.
+		limit = paramsLen - 1
+		// Formatted assertions have explicit message arg before msgAndArgs.
+		if cm.Fn.IsFmt {
+			limit--
+		}
+	}
+	if limit < 0 {
+		return 0
+	}
+	if limit > len(cm.Args) {
+		return len(cm.Args)
+	}
+	return limit
 }
 
 func needToSkipForLenGuardContext(currCall *callMeta, otherCalls []*callMeta) bool {
