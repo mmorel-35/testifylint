@@ -29,13 +29,6 @@ func TestErrorFirstChecker(t *testing.T) {
 		assert.NotNil(t, res) // want "error-first: error return value was discarded; assert the error before asserting the result"
 	}
 
-	// Invalid: non-canonical error assertion (assert.Equal on err) does not satisfy the requirement.
-	{
-		res, err := resultAndErr()
-		assert.Equal(t, nil, err) // Not a canonical error assertion.
-		assert.NotNil(t, res)     // want "error-first: assert error before making other assertions"
-	}
-
 	// Invalid: error in first position (not last), not checked.
 	{
 		err, res := errAndResult()
@@ -79,6 +72,20 @@ func TestErrorFirstChecker(t *testing.T) {
 	{
 		res, err := resultAndErr()
 		assert.NoError(t, err)
+		assert.NotNil(t, res)
+	}
+
+	// Valid: any assertion on err counts as checking the error.
+	{
+		res, err := resultAndErr()
+		assert.Nil(t, err)
+		assert.NotNil(t, res)
+	}
+
+	// Valid: non-canonical assertion on err (Equal) counts as checking the error.
+	{
+		res, err := resultAndErr()
+		assert.Equal(t, nil, err)
 		assert.NotNil(t, res)
 	}
 

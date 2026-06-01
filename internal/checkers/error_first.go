@@ -304,8 +304,8 @@ func errorFirstAssignIsActiveForCall(info *errorFirstAssignInfo, c *callMeta) bo
 	return true
 }
 
-// errorFirstIsErrChecked returns true if there is a canonical error assertion
-// for info.errObj that appears between the assignment and the call c.
+// errorFirstIsErrChecked returns true if there is any testify assertion for
+// info.errObj that appears between the assignment and the call c.
 func errorFirstIsErrChecked(
 	pass *analysis.Pass,
 	info *errorFirstAssignInfo,
@@ -320,15 +320,12 @@ func errorFirstIsErrChecked(
 		if other.testifyCall == nil {
 			continue
 		}
-		if !isErrorFirstErrorAssertion(other.testifyCall.Fn.NameFTrimmed) {
-			continue
-		}
 		// The error assertion must appear after the assignment.
 		if other.call.Pos() <= info.pos {
 			continue
 		}
-		// The first argument of the error assertion must be the error variable.
-		if !errorFirstErrArgMatchesObj(pass, other.testifyCall, info.errObj) {
+		// Any argument of the assertion must be the error variable.
+		if !errorFirstErrArgMatchesAny(pass, other.testifyCall, info.errObj) {
 			continue
 		}
 
@@ -357,18 +354,20 @@ func errorFirstIsErrChecked(
 	return false
 }
 
-// errorFirstErrArgMatchesObj returns true if the first (error) argument of the
-// canonical error assertion call refers to the given error variable object.
+// errorFirstErrArgMatchesAny returns true if any argument of the testify call
+// refers to the given error variable object.
 // CallMeta.Args already excludes the testing.T argument.
-func errorFirstErrArgMatchesObj(pass *analysis.Pass, cm *CallMeta, errObj *types.Var) bool {
-	if len(cm.Args) == 0 {
-		return false
+func errorFirstErrArgMatchesAny(pass *analysis.Pass, cm *CallMeta, errObj *types.Var) bool {
+	for _, arg := range cm.Args {
+		id, ok := arg.(*ast.Ident)
+		if !ok {
+			continue
+		}
+		if pass.TypesInfo.ObjectOf(id) == errObj {
+			return true
+		}
 	}
-	id, ok := cm.Args[0].(*ast.Ident)
-	if !ok {
-		return false
-	}
-	return pass.TypesInfo.ObjectOf(id) == errObj
+	return false
 }
 
 // nodeContains reports whether node n contains target anywhere in its subtree.

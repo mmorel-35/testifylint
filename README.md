@@ -537,8 +537,8 @@ require.NoError(t, err)
 assert.NotNil(t, res)
 
 res, err := myfunc()
-require.ErrorContains(t, err, "my error")
-assert.Nil(t, res)
+assert.Nil(t, err) // any assertion on err counts
+assert.NotNil(t, res)
 
 res, err := myfunc()
 if assert.NoError(t, err) {
@@ -549,8 +549,7 @@ if assert.NoError(t, err) {
 **Autofix**: false. <br>
 **Enabled by default**: true. <br>
 **Reason**: Asserting on a result before checking the error can hide the root cause of test failures.
-The error should always be asserted first using one of the canonical error-checking functions
-(`Error`, `ErrorIs`, `ErrorAs`, `EqualError`, `ErrorContains`, `NoError`, `NotErrorIs`).
+The error should always be asserted first — any testify assertion on the error variable satisfies this requirement.
 
 ---
 
