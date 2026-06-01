@@ -91,6 +91,26 @@ func TestLenGuardWithInsufficientRequireLen(t *testing.T) {
 	assert.Positive(t, arr[2]) // want "require-len: for indexed access use require\\.Len guard"
 }
 
+func TestLenGuardExpectedActualMapBothSides(t *testing.T) {
+	var want, res map[int]string
+
+	assert.Equal(t, want[0], res[0]) // want "require-len: for indexed access use require\\.Len guard"
+}
+
+func TestLenGuardExpectedActualMapMissingOneSide(t *testing.T) {
+	var want, res map[int]string
+
+	require.Contains(t, want, 1)
+	assert.Equal(t, want[1], res[1]) // want "require-len: for indexed access use require\\.Len guard"
+}
+
+func TestLenGuardExpectedActualSliceIndexOne(t *testing.T) {
+	want := []string{"a", "b"}
+	res := []string{"a", "b", "c"}
+
+	assert.Equal(t, want[1], res[1]) // want "require-len: for indexed access use require\\.Len guard"
+}
+
 func consumeInt(_ int) {}
 
 func consumeBool(_ bool) {}
