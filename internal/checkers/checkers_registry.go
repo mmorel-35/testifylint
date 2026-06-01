@@ -32,6 +32,7 @@ var registry = checkersRegistry{
 	// Advanced checkers.
 	{factory: asCheckerFactory(NewFailNow), enabledByDefault: true},
 	{factory: asCheckerFactory(NewBlankImport), enabledByDefault: true},
+	{factory: asCheckerFactory(NewErrorFirst), enabledByDefault: true},
 	{factory: asCheckerFactory(NewEventuallyWithT), enabledByDefault: true},
 	{factory: asCheckerFactory(NewGoRequire), enabledByDefault: true},
 	{factory: asCheckerFactory(NewHTTPMultiple), enabledByDefault: true},
