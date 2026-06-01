@@ -526,6 +526,7 @@ assert.Error(t, err)
 ❌
 res, err := myfunc()
 assert.NotNil(t, res) // error-first: assert error before making other assertions
+_ = err
 
 res, _ := myfunc()
 assert.NotNil(t, res) // error-first: error return value was discarded; assert the error before asserting the result
