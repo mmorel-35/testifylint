@@ -277,7 +277,7 @@ func (checker ErrorFirst) Check(pass *analysis.Pass, insp *inspector.Inspector) 
 					))
 					reportedAssigns[info] = struct{}{}
 				}
-				// Only report once per assertion call.
+				// Only report once per assignment origin.
 				break
 			}
 		}
