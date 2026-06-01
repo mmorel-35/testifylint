@@ -529,7 +529,7 @@ assert.NotNil(t, res) // error-first: assert error before making other assertion
 _ = err
 
 res, err := myfunc()
-assert.Equal(t, 0, res, err) // error-first: assert error before making other assertions (err is only a message arg)
+assert.Equal(t, 0, res, err) // error-first: assert error before making other assertions (err is only a message argument)
 
 res, _ := myfunc()
 assert.NotNil(t, res) // error-first: error return value was discarded; assert the error before asserting the result
