@@ -97,6 +97,7 @@ https://golangci-lint.run/docs/linters/configuration/#testifylint
 | [equal-values](#equal-values)                       | ✅                  | ✅       |
 | [error-is-as](#error-is-as)                         | ✅                  | 🤏      |
 | [error-nil](#error-nil)                             | ✅                  | ✅       |
+| [error-first](#error-first)                         | ✅                  | ❌       |
 | [expected-actual](#expected-actual)                 | ✅                  | ✅       |
 | [float-compare](#float-compare)                     | ✅                  | ❌       |
 | [formatter](#formatter)                             | ✅                  | 🤏      |
@@ -516,6 +517,39 @@ assert.Error(t, err)
 **Autofix**: true. <br>
 **Enabled by default**: true. <br>
 **Reason**: More appropriate `testify` API with clearer failure message.
+
+---
+
+### error-first
+
+```go
+❌
+res, err := myfunc()
+assert.NotNil(t, res) // error-first: assert error before making other assertions
+
+res, _ := myfunc()
+assert.NotNil(t, res) // error-first: error return value was discarded; assert the error before asserting the result
+
+✅
+res, err := myfunc()
+require.NoError(t, err)
+assert.NotNil(t, res)
+
+res, err := myfunc()
+require.ErrorContains(t, err, "my error")
+assert.Nil(t, res)
+
+res, err := myfunc()
+if assert.NoError(t, err) {
+    assert.NotNil(t, res)
+}
+```
+
+**Autofix**: false. <br>
+**Enabled by default**: true. <br>
+**Reason**: Asserting on a result before checking the error can hide the root cause of test failures.
+The error should always be asserted first using one of the canonical error-checking functions
+(`Error`, `ErrorIs`, `ErrorAs`, `EqualError`, `ErrorContains`, `NoError`, `NotErrorIs`).
 
 ---
 
