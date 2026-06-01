@@ -60,10 +60,10 @@ func LocalPkgName(files []*ast.File, pos token.Pos, pkgPath string) (string, boo
 			}
 			if imp.Name != nil {
 				if imp.Name.Name == "." {
-					return "", true
+					return "", true // dot-import: symbols accessible unqualified
 				}
 				if imp.Name.Name == "_" {
-					return "", false
+					return "", false // blank import: package not accessible
 				}
 				return imp.Name.Name, true
 			}

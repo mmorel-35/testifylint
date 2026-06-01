@@ -322,7 +322,7 @@ func addRequireImportTextEdit(pass *analysis.Pass, pos token.Pos, requireQualifi
 		return analysis.TextEdit{
 			Pos:     file.Name.End(),
 			End:     file.Name.End(),
-			NewText: []byte(fmt.Sprintf("\n\nimport %s\n", importSpec)),
+			NewText: fmt.Appendf(nil, "\n\nimport %s\n", importSpec),
 		}, true
 	}
 
