@@ -534,7 +534,7 @@ func hasContainsGuard(
 
 func guardSearchStartIndex(pass *analysis.Pass, currCall *callMeta, currCallIndex int, otherCalls []*callMeta) int {
 	start := 0
-	for i := 0; i < currCallIndex; i++ {
+	for i := range currCallIndex {
 		c := otherCalls[i]
 		if c.parentBlock != currCall.parentBlock || c.testifyCall == nil {
 			continue
