@@ -89,10 +89,10 @@ func TestErrorFirstChecker(t *testing.T) {
 		assert.NotNil(t, res)
 	}
 
-	// Valid: assertion that references err (even as message arg) counts as checked.
+	// Invalid: err in message arg does not count as checking the error.
 	{
 		res, err := resultAndErr()
-		assert.Equal(t, 0, res, err)
+		assert.Equal(t, 0, res, err) // want "error-first: assert error before making other assertions"
 	}
 
 	// Valid: error checked first with ErrorContains.

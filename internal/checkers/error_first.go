@@ -260,12 +260,6 @@ func (checker ErrorFirst) Check(pass *analysis.Pass, insp *inspector.Inspector) 
 					continue
 				}
 
-				// Any assertion that references the associated error variable
-				// counts as checked for this tracked result variable.
-				if !info.isBlank && info.errObj != nil && errorFirstErrArgMatchesAny(pass, c.testifyCall, info.errObj) {
-					continue
-				}
-
 				if info.isBlank {
 					diagnostics = append(diagnostics, *newDiagnostic(
 						checker.Name(), c.testifyCall,
@@ -353,8 +347,8 @@ func errorFirstIsErrChecked(
 		if other.call.Pos() <= info.pos {
 			continue
 		}
-		// Any argument of the assertion must be the error variable.
-		if !errorFirstErrArgMatchesAny(pass, other.testifyCall, info.errObj) {
+		// The error variable must be in non-message assertion arguments.
+		if !errorFirstErrArgMatchesAssertionArgs(pass, other.testifyCall, info.errObj) {
 			continue
 		}
 
@@ -383,11 +377,10 @@ func errorFirstIsErrChecked(
 	return false
 }
 
-// errorFirstErrArgMatchesAny returns true if any argument of the testify call
-// refers to the given error variable object.
-// CallMeta.Args already excludes the testing.T argument.
-func errorFirstErrArgMatchesAny(pass *analysis.Pass, cm *CallMeta, errObj *types.Var) bool {
-	for _, arg := range cm.Args {
+// errorFirstErrArgMatchesAssertionArgs returns true if any non-message argument
+// of the testify call refers to the given error variable object.
+func errorFirstErrArgMatchesAssertionArgs(pass *analysis.Pass, cm *CallMeta, errObj *types.Var) bool {
+	for _, arg := range cm.Args[:errorFirstNonMessageArgLimit(pass, cm)] {
 		id, ok := arg.(*ast.Ident)
 		if !ok {
 			continue
@@ -397,6 +390,38 @@ func errorFirstErrArgMatchesAny(pass *analysis.Pass, cm *CallMeta, errObj *types
 		}
 	}
 	return false
+}
+
+func errorFirstNonMessageArgLimit(pass *analysis.Pass, cm *CallMeta) int {
+	sig := cm.Fn.Signature
+	if sig == nil {
+		return len(cm.Args)
+	}
+
+	paramsLen := sig.Params().Len()
+	if len(cm.ArgsRaw) > 0 && implementsTestingT(pass, cm.ArgsRaw[0]) {
+		paramsLen--
+	}
+	if paramsLen < 0 {
+		return 0
+	}
+
+	limit := len(cm.Args)
+	if sig.Variadic() {
+		// Variadic parameter is msgAndArgs; base assertion args are fixed params.
+		limit = paramsLen - 1
+		// Formatted assertions have explicit message arg before msgAndArgs.
+		if cm.Fn.IsFmt {
+			limit--
+		}
+	}
+	if limit < 0 {
+		return 0
+	}
+	if limit > len(cm.Args) {
+		return len(cm.Args)
+	}
+	return limit
 }
 
 // nodeContains reports whether node n contains target anywhere in its subtree.
