@@ -131,6 +131,12 @@ func {{ .CheckerName.AsTestName }}(t *testing.T) {
 		assert.NotNil(t, res)
 	}
 
+	// Valid: assertion that references err (even as message arg) counts as checked.
+	{
+		res, err := resultAndErr()
+		assert.Equal(t, 0, res, err)
+	}
+
 	// Valid: error checked first with ErrorContains.
 	{
 		res, err := resultAndErr()
@@ -187,6 +193,14 @@ func {{ .CheckerName.AsTestName }}(t *testing.T) {
 		res, err = resultAndErr()
 		require.NoError(t, err)
 		assert.NotNil(t, res)
+	}
+
+	// Valid: reassignment from non-multi-return expression clears tracking.
+	{
+		res, err := resultAndErr()
+		require.NoError(t, err)
+		res = 1
+		assert.Equal(t, 1, res)
 	}
 }
 

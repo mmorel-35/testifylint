@@ -68,6 +68,9 @@ func (checker ErrorFirst) Check(pass *analysis.Pass, insp *inspector.Inspector) 
 		}
 
 		as := node.(*ast.AssignStmt)
+		if fa := assignsByFunc[*fID]; fa != nil {
+			errorFirstForgetAssignedVars(pass, fa, as.Lhs)
+		}
 
 		// RHS must be a single call expression (multi-return function).
 		if len(as.Rhs) != 1 {
@@ -257,6 +260,12 @@ func (checker ErrorFirst) Check(pass *analysis.Pass, insp *inspector.Inspector) 
 					continue
 				}
 
+				// Any assertion that references the associated error variable
+				// counts as checked for this tracked result variable.
+				if !info.isBlank && info.errObj != nil && errorFirstErrArgMatchesAny(pass, c.testifyCall, info.errObj) {
+					continue
+				}
+
 				if info.isBlank {
 					diagnostics = append(diagnostics, *newDiagnostic(
 						checker.Name(), c.testifyCall,
@@ -275,6 +284,26 @@ func (checker ErrorFirst) Check(pass *analysis.Pass, insp *inspector.Inspector) 
 	}
 
 	return diagnostics
+}
+
+// errorFirstForgetAssignedVars removes variables written by an assignment from
+// the tracking maps, so stale origins don't survive unrelated reassignments.
+func errorFirstForgetAssignedVars(pass *analysis.Pass, fa *funcAssigns, lhs []ast.Expr) {
+	for _, lhsExpr := range lhs {
+		if isIdentWithName("_", lhsExpr) {
+			continue
+		}
+		id, ok := lhsExpr.(*ast.Ident)
+		if !ok {
+			continue
+		}
+		obj, ok := pass.TypesInfo.ObjectOf(id).(*types.Var)
+		if !ok {
+			continue
+		}
+		delete(fa.resultToAssign, obj)
+		delete(fa.errToAssign, obj)
+	}
 }
 
 // isErrorFirstErrorAssertion returns true if the function name (with f suffix
