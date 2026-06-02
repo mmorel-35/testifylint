@@ -57,7 +57,6 @@ func Test_newCheckers(t *testing.T) {
 
 	enabledByDefaultAdvancedCheckers := []checkers.AdvancedChecker{
 		checkers.NewBlankImport(),
-		checkers.NewErrorFirst(),
 		checkers.NewGoRequire(),
 		checkers.NewRequireError(),
 		checkers.NewSuiteBrokenParallel(),
@@ -139,8 +138,11 @@ func Test_newCheckers(t *testing.T) {
 					checkers.NewSuiteTHelper().Name(),
 				},
 			},
-			expRegular:  replace(enabledByDefaultRegularCheckers, formatterWithoutEnabledOptions),
-			expAdvanced: allAdvancedCheckers,
+			expRegular: replace(enabledByDefaultRegularCheckers, formatterWithoutEnabledOptions),
+			expAdvanced: append(
+				enabledByDefaultAdvancedCheckers,
+				checkers.NewSuiteTHelper(),
+			),
 		},
 		{
 			name: "disable three checkers from enabled by default checkers",
