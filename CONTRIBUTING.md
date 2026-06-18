@@ -131,84 +131,9 @@ Describe a new checker in [checkers section](./README.md#checkers).
 
 # Open for contribution
 
-- [elements-match](#elements-match)
-- [error-compare](#error-compare)
 - [equal-values](#equal-values)
-- [graceful-teardown](#graceful-teardown)
 - [float-compare](#float-compare)
-- [http-const](#http-const)
 - [http-sugar](#http-sugar)
-- [require-len](#require-len)
-- [suite-test-name](#suite-test-name)
-
----
-
-### elements-match
-
-```go
-❌   require.Equal(t, len(expected), len(result)
-     sort.Slice(expected, /* ... */)
-     sort.Slice(result, /* ... */)
-     for i := range result {
-         assert.Equal(t, expected[i], result[i])
-     }
-     // Or for Go >= 1.21
-     slices.Sort(expected)
-     slices.Sort(result)
-     assert.True(t, slices.Equal(expected, result))
-
-✅   assert.ElementsMatch(t, expected, result)
-```
-
-**Autofix**: maybe (depends on implementation difficulty). <br>
-**Enabled by default**: maybe (depends on checker's stability). <br>
-**Reason**: Code simplification.
-
----
-
-### error-compare
-
-```go
-❌   assert.ErrorContains(t, err, "not found")
-     assert.EqualError(t, err, "user not found")
-     assert.Equal(t, err.Error(), "user not found")
-     assert.Equal(t, err, errSentinel) // Through `reflect.DeepEqual` causes error strings to be compared.
-     assert.NotEqual(t, err, errSentinel)
-     require.Error(t, fmt.Errorf("you need to specify either logGroupName or logGroupArn"), err) // grafana case
-     // etc.
-
-✅   assert.ErrorIs(t, err, ErrUserNotFound)
-```
-
-**Autofix**: false. <br>
-**Enabled by default**: true. <br>
-**Reason**: The `Error()` method on the `error` interface exists for humans, not code. <br>
-**Related issues**: [#47](https://github.com/Antonboom/testifylint/issues/47)
-
----
-
-### graceful-teardown
-
-Warns about usage of `require` in `t.Cleanup` functions and suite teardown methods:
-
-```go
-func (s *ServiceIntegrationSuite) TearDownTest() {
-    if p := s.verdictsProducer; p != nil {
-        s.Require().NoError(p.Close()) ❌
-    }
-    if c := s.dlqVerdictsConsumer; c != nil {
-        s.NoError(c.Close())
-    }
-    s.DBSuite.TearDownTest()
-    s.ks.TearDownTest()
-}
-```
-
-**Autofix**: false. <br>
-**Enabled by default**: false. <br>
-**Reason**: Possible resource leaks, because `require` finishes the current goroutine. <br>
-**Related issues**: [#142](https://github.com/Antonboom/testifylint/issues/142)
-
 ---
 
 ### float-compare
@@ -253,24 +178,6 @@ And similar idea for `assert.InEpsilonSlice` / `assert.InDeltaSlice`.
 
 ---
 
-### http-const
-
-```go
-❌   assert.HTTPStatusCode(t, handler, "GET", "/index", nil, 200)
-     assert.HTTPBodyContains(t, handler, "GET", "/index", nil, "counter")
-     // etc.
-
-✅   assert.HTTPStatusCode(t, handler, http.MethodGet, "/index", nil, http.StatusOK)
-     assert.HTTPBodyContains(t, handler, http.MethodGet, "/index", nil, "counter")
-```
-
-**Autofix**: true. <br>
-**Enabled by default**: true. <br>
-**Reason**: Is similar to the [usestdlibvars](https://golangci-lint.run/usage/linters/#usestdlibvars) linter. <br>
-**Related issues**: [#141](https://github.com/Antonboom/testifylint/issues/141)
-
----
-
 ### http-sugar
 
 ```go
@@ -291,64 +198,6 @@ And similar idea for `assert.InEpsilonSlice` / `assert.InDeltaSlice`.
 **Enabled by default**: maybe? <br>
 **Reason**: Code simplification. <br>
 **Related issues**: [#140](https://github.com/Antonboom/testifylint/issues/140)
-
----
-
-### require-len
-
-The main idea: if code contains array/slice indexing,
-then before that there must be a length constraint through `require`.
-
-```go
-❌   assert.Len(t, arr, 3) // Or assert.NotEmpty(t, arr) and other variations.
-     assert.Equal(t, "gopher", arr[1])
-
-✅   require.Len(t, arr, 3) // Or require.NotEmpty(t, arr) and other variations.
-     assert.Equal(t, "gopher", arr[1])
-```
-
-**Autofix**: false? <br>
-**Enabled by default**: maybe? <br>
-**Reason**: Similar to [require-error](README.md#require-error). Save you from annoying panics.
-
-Or maybe do something similar for maps? And come up with better name for the checker.
-
----
-
-### suite-test-name
-
-```go
-import (
-    "testing"
-    "github.com/stretchr/testify/suite"
-)
-
-type BalanceSubscriptionSuite struct {
-    suite.Suite
-}
-
-❌ func TestBalanceSubs_Run(t *testing.T) {
-    suite.Run(t, new(BalanceSubscriptionSuite))
-}
-
-
-✅ func TestBalanceSubscriptionSuite(t *testing.T) {
-    suite.Run(t, new(BalanceSubscriptionSuite))
-}
-```
-
-**Autofix**: true. <br>
-**Enabled by default**: false. <br>
-**Reason**: Just unification of approach. <br>
-**Related issues**: [#48](https://github.com/Antonboom/testifylint/issues/48)
-
-Also, maybe to check the configurable format of subtest name? Mess example:
-
-```go
-func (s *HandlersSuite) Test_Usecase_Success()
-func (s *HandlersSuite) TestUsecaseSuccess()
-func (s *HandlersSuite) Test_UsecaseSuccess()
-```
 
 ---
 

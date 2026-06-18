@@ -59,11 +59,23 @@ func TestTestifyLint_NotDefaultCases(t *testing.T) {
 			flags: map[string]string{"enable-all": "true"},
 		},
 		{
+			dir:   "compares-issue135",
+			flags: map[string]string{"disable-all": "true", "enable": checkers.NewCompares().Name()},
+		},
+		{
 			dir:   "encoded-compare-issue196",
 			flags: map[string]string{"disable-all": "true", "enable": checkers.NewEncodedCompare().Name()},
 		},
 		{
 			dir:   "encoded-compare-issue198",
+			flags: map[string]string{"disable-all": "true", "enable": checkers.NewEncodedCompare().Name()},
+		},
+		{
+			dir:   "encoded-compare-issue274",
+			flags: map[string]string{"disable-all": "true", "enable": checkers.NewEncodedCompare().Name()},
+		},
+		{
+			dir:   "encoded-compare-issue276",
 			flags: map[string]string{"disable-all": "true", "enable": checkers.NewEncodedCompare().Name()},
 		},
 		{
@@ -77,6 +89,10 @@ func TestTestifyLint_NotDefaultCases(t *testing.T) {
 		{
 			dir:   "error-is-as-issue231",
 			flags: map[string]string{"enable-all": "true"},
+		},
+		{
+			dir:   "error-is-as-issue277",
+			flags: map[string]string{"disable-all": "true", "enable": checkers.NewErrorIsAs().Name()},
 		},
 		{
 			dir:   "error-nil-issue95",
@@ -127,6 +143,10 @@ func TestTestifyLint_NotDefaultCases(t *testing.T) {
 			},
 		},
 		{
+			dir:   "fail-now-constrained-interface",
+			flags: map[string]string{"disable-all": "true", "enable": checkers.NewFailNow().Name()},
+		},
+		{
 			dir: "ginkgo",
 		},
 		{
@@ -149,6 +169,10 @@ func TestTestifyLint_NotDefaultCases(t *testing.T) {
 			flags: map[string]string{"disable-all": "true", "enable": checkers.NewGoRequire().Name()},
 		},
 		{
+			dir:   "negated-assert-skip-logic",
+			flags: map[string]string{"disable-all": "true", "enable": checkers.NewNegatedAssert().Name()},
+		},
+		{
 			dir:   "not-std-funcs",
 			flags: map[string]string{"enable-all": "true"},
 		},
@@ -168,6 +192,10 @@ func TestTestifyLint_NotDefaultCases(t *testing.T) {
 			flags: map[string]string{"disable-all": "true", "enable": checkers.NewRequireError().Name()},
 		},
 		{
+			dir:   "require-len",
+			flags: map[string]string{"disable-all": "true", "enable": checkers.NewRequireLen().Name()},
+		},
+		{
 			dir:   "suite-extra-assert-call-issue176",
 			flags: map[string]string{"disable-all": "true", "enable": checkers.NewSuiteExtraAssertCall().Name()},
 		},
@@ -178,6 +206,22 @@ func TestTestifyLint_NotDefaultCases(t *testing.T) {
 				"enable":                       checkers.NewSuiteExtraAssertCall().Name(),
 				"suite-extra-assert-call.mode": "require",
 			},
+		},
+		{
+			dir:   "http-method-no-import",
+			flags: map[string]string{"disable-all": "true", "enable": checkers.NewHTTPMethod().Name()},
+		},
+		{
+			dir:   "http-status-code-no-import",
+			flags: map[string]string{"disable-all": "true", "enable": checkers.NewHTTPStatusCode().Name()},
+		},
+		{
+			dir:   "http-multiple-add-import",
+			flags: map[string]string{"disable-all": "true", "enable": checkers.NewHTTPMultiple().Name()},
+		},
+		{
+			dir:   "graceful-teardown-no-import",
+			flags: map[string]string{"disable-all": "true", "enable": checkers.NewGracefulTeardown().Name()},
 		},
 	}
 
